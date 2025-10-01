@@ -1,0 +1,33 @@
+{
+  "manifest_version": 3,
+  "name": "ChatGPT Carbon Estimator",
+  "description": "Estime les kgCO₂ par requête ChatGPT selon la région, la durée et la taille des messages.",
+  "version": "0.1.0",
+  "permissions": [
+    "storage",
+    "webRequest",
+    "webRequestBlocking"
+  ],
+  "host_permissions": [
+    "https://chatgpt.com/*",
+    "https://api.openai.com/*"
+  ],
+  "background": {
+    "scripts": ["background.js"],
+    "type": "module"
+  },
+  "action": {
+    "default_title": "ChatGPT Carbon",
+    "default_popup": "popup/popup.html"
+  },
+  "content_scripts": [{
+    "matches": ["https://chatgpt.com/*"],
+    "js": ["content.js"],
+    "css": ["ui.css"],
+    "run_at": "document_end"
+  }],
+  "options_ui": {
+    "page": "options/options.html",
+    "open_in_tab": true
+  }
+}

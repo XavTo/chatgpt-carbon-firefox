@@ -1,0 +1,73 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Options — ChatGPT Carbon</title>
+  <style>
+    body { font: 14px system-ui; max-width: 800px; margin: 24px auto; padding: 0 16px; }
+    h1 { font-size: 18px; }
+    fieldset { border:1px solid #ddd; padding:12px; margin:12px 0; border-radius:8px; }
+    .grid { display:grid; grid-template-columns: 1fr 1fr; gap:8px 16px; align-items:center; }
+    label { color:#333; }
+    input[type="number"] { width: 120px; }
+    table { border-collapse: collapse; margin-top:8px; }
+    th, td { border:1px solid #ddd; padding:6px 8px; }
+    .actions { margin-top:12px; }
+  </style>
+</head>
+<body>
+  <h1>Paramètres</h1>
+
+  <fieldset>
+    <legend>Modèle d’énergie par requête</legend>
+    <div class="grid">
+      <label>Wh par requête (base)</label><input id="baseWh" type="number" step="0.01">
+      <label>Wh min (repère)</label><input id="minWh" type="number" step="0.01">
+    </div>
+    <small>Références : 2,9 Wh (moyenne par requête, GPTFootprint) ; 0,3–0,34 Wh (analyses récentes).</small>
+  </fieldset>
+
+  <fieldset>
+    <legend>Facteurs d’échelle</legend>
+    <div class="grid">
+      <label>Durée de référence (s)</label><input id="durRef" type="number" step="0.1">
+      <label>Poids durée</label><input id="wDur" type="number" step="0.05">
+      <label>Prompt réf (kcar)</label><input id="pRef" type="number" step="0.1">
+      <label>Poids prompt</label><input id="wP" type="number" step="0.05">
+      <label>Réponse réf (kcar)</label><input id="rRef" type="number" step="0.1">
+      <label>Poids réponse</label><input id="wR" type="number" step="0.05">
+      <label>Échelle min</label><input id="sMin" type="number" step="0.1">
+      <label>Échelle max</label><input id="sMax" type="number" step="0.1">
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Région et intensité carbone</legend>
+    <div class="grid">
+      <label>Région</label>
+      <select id="region"></select>
+    </div>
+    <table id="regionTable">
+      <thead><tr><th>Région</th><th>kgCO₂/kWh</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <div class="actions"><button id="addRegion">Ajouter région</button></div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Réseau</legend>
+    <div class="grid">
+      <label>kWh/GB (fixe)</label><input id="kwhGbFixed" type="number" step="0.001">
+      <label>kWh/GB (mobile)</label><input id="kwhGbMobile" type="number" step="0.001">
+      <label>Utiliser réseau mobile</label><input id="useMobile" type="checkbox">
+    </div>
+  </fieldset>
+
+  <div class="actions">
+    <button id="save">Enregistrer</button>
+    <span id="status"></span>
+  </div>
+
+  <script src="options.js"></script>
+</body>
+</html>
