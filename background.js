@@ -2,8 +2,10 @@
 
 const browserApi = typeof browser !== 'undefined' ? browser : chrome;
 
+// Les requêtes chatgpt.com transitent désormais par /backend-api/f/conversation ;
+// on accepte toute variante contenant "conversation" pour rester robuste.
 const CHAT_ENDPOINTS = [
-  "*://chatgpt.com/backend-api/conversation*",
+  "*://chatgpt.com/backend-api/*conversation*",
   "*://api.openai.com/v1/chat/completions*"
 ];
 
@@ -65,6 +67,31 @@ function mergeSettings(settings) {
 // Mémo sur requêtes afin de relier début/fin et accumuler octets
 const reqState = new Map(); // key: requestId -> {start, url, method, reqBytes, respBytes, contentLength}
 
+function logEvent(entry, providedSettings) {
+  const send = (settings) => {
+    if (!settings?.enableLogging) return;
+    const url = (settings.logApiUrl || "").trim();
+    if (!url) return;
+    const payload = {
+      timestamp: new Date().toISOString(),
+      ...entry
+    };
+    fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    }).catch((err) => {
+      console.warn("ChatGPT Carbon: échec de l'envoi vers l'API", err);
+    });
+  };
+
+  if (providedSettings) {
+    send(providedSettings);
+  } else {
+    getSettings().then(send).catch(() => {});
+  }
+}
+
 function guessBytesFromBody(details) {
   try {
     if (details.requestBody && details.requestBody.raw) {
@@ -75,7 +102,7 @@ function guessBytesFromBody(details) {
 }
 
 browserApi.webRequest.onBeforeRequest.addListener(
-  async (details) => {
+  (details) => {
     if (details.method !== "POST") return;
     reqState.set(details.requestId, {
       start: performance.now(),
@@ -84,6 +111,14 @@ browserApi.webRequest.onBeforeRequest.addListener(
       reqBytes: guessBytesFromBody(details),
       respBytes: 0,
       contentLength: null
+    });
+    logEvent({
+      type: "request:start",
+      requestId: details.requestId,
+      url: details.url,
+      method: details.method,
+      tabId: details.tabId,
+      frameId: details.frameId
     });
   },
   { urls: CHAT_ENDPOINTS },
@@ -99,6 +134,14 @@ browserApi.webRequest.onHeadersReceived.addListener(
       const val = parseInt(clHeader.value, 10);
       if (!Number.isNaN(val)) st.contentLength = val;
     }
+    logEvent({
+      type: "request:headers",
+      requestId: details.requestId,
+      url: details.url,
+      statusCode: details.statusCode,
+      fromCache: details.fromCache,
+      contentLength: st.contentLength ?? null
+    });
   },
   { urls: CHAT_ENDPOINTS },
   ["responseHeaders"]
@@ -125,7 +168,14 @@ browserApi.webRequest.onCompleted.addListener(
           promptChars = resp.promptChars;
           replyChars = resp.replyChars;
         }
-      } catch {}
+      } catch (err) {
+        logEvent({
+          type: "tabs:message:error",
+          requestId: details.requestId,
+          tabId: details.tabId,
+          reason: err?.message || String(err)
+        });
+      }
     }
 
     const settings = await getSettings();
@@ -182,27 +232,29 @@ browserApi.webRequest.onCompleted.addListener(
 
     browserApi.runtime.sendMessage({ type: "gptcarbon:estimation", data: payload });
 
-    logEstimation(settings, payload).catch(() => {});
+    logEvent({
+      type: "estimation",
+      requestId: details.requestId,
+      ...payload
+    }, settings);
 
     reqState.delete(details.requestId);
   },
   { urls: CHAT_ENDPOINTS }
 );
 
-async function logEstimation(settings, payload) {
-  if (!settings.enableLogging) return;
-  const url = (settings.logApiUrl || "").trim();
-  if (!url) return;
-  try {
-    await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        timestamp: new Date().toISOString(),
-        ...payload
-      })
+browserApi.webRequest.onErrorOccurred.addListener(
+  (details) => {
+    const st = reqState.get(details.requestId);
+    logEvent({
+      type: "request:error",
+      requestId: details.requestId,
+      url: details.url,
+      method: st?.method || details.method,
+      error: details.error,
+      fromCache: details.fromCache
     });
-  } catch (err) {
-    console.warn("ChatGPT Carbon: échec de l'envoi vers l'API", err);
-  }
-}
+    reqState.delete(details.requestId);
+  },
+  { urls: CHAT_ENDPOINTS }
+);

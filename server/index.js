@@ -22,6 +22,7 @@ async function ensureTable() {
     CREATE TABLE IF NOT EXISTS chatgpt_carbon_events (
       id SERIAL PRIMARY KEY,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      event_type TEXT,
       url TEXT,
       duration_sec REAL,
       prompt_chars INTEGER,
@@ -34,9 +35,12 @@ async function ensureTable() {
       total_wh REAL,
       kg_co2 REAL,
       region TEXT,
-      kg_per_kwh REAL
+      kg_per_kwh REAL,
+      raw JSONB
     )
   `);
+  await pool.query(`ALTER TABLE chatgpt_carbon_events ADD COLUMN IF NOT EXISTS event_type TEXT`);
+  await pool.query(`ALTER TABLE chatgpt_carbon_events ADD COLUMN IF NOT EXISTS raw JSONB`);
 }
 
 const app = express();
@@ -48,8 +52,10 @@ app.get('/health', (_req, res) => {
 });
 
 app.post('/estimations', async (req, res) => {
+  const body = req.body || {};
   const {
     timestamp,
+    type,
     url,
     durationSec,
     promptChars,
@@ -63,25 +69,28 @@ app.post('/estimations', async (req, res) => {
     kgCO2,
     region,
     kgPerKWh
-  } = req.body || {};
+  } = body;
 
-  if (typeof totalWh !== 'number' || typeof kgCO2 !== 'number') {
-    return res.status(400).json({ ok: false, error: 'Payload invalide' });
+  const eventType = type || (typeof totalWh === 'number' && typeof kgCO2 === 'number' ? 'estimation' : 'event');
+
+  if (eventType === 'estimation' && (typeof totalWh !== 'number' || typeof kgCO2 !== 'number')) {
+    return res.status(400).json({ ok: false, error: 'Payload estimation invalide' });
   }
 
   try {
     await pool.query(
       `INSERT INTO chatgpt_carbon_events (
-        created_at, url, duration_sec, prompt_chars, reply_chars,
+        created_at, event_type, url, duration_sec, prompt_chars, reply_chars,
         request_bytes, response_bytes, total_bytes, compute_wh, network_wh,
-        total_wh, kg_co2, region, kg_per_kwh
+        total_wh, kg_co2, region, kg_per_kwh, raw
       ) VALUES (
-        COALESCE($1::timestamptz, NOW()), $2, $3, $4, $5,
-        $6, $7, $8, $9, $10,
-        $11, $12, $13, $14
+        COALESCE($1::timestamptz, NOW()), $2, $3, $4, $5, $6,
+        $7, $8, $9, $10, $11,
+        $12, $13, $14, $15, $16
       )`,
       [
         timestamp || null,
+        eventType,
         url || null,
         durationSec ?? null,
         promptChars ?? null,
@@ -94,7 +103,8 @@ app.post('/estimations', async (req, res) => {
         totalWh ?? null,
         kgCO2 ?? null,
         region || null,
-        kgPerKWh ?? null
+        kgPerKWh ?? null,
+        body
       ]
     );
     res.json({ ok: true });
