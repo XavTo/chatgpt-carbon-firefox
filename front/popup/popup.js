@@ -32,7 +32,7 @@ const elements = {
 };
 
 const THEME_STORAGE_KEY = 'gptcarbon:themePreference';
-const THEME_CYCLE = ['system', 'light', 'dark'];
+const THEME_CYCLE = ['light', 'dark'];
 const prefersDarkScheme = typeof window.matchMedia === 'function'
   ? window.matchMedia('(prefers-color-scheme: dark)')
   : { matches: false };
@@ -53,20 +53,6 @@ let lastEstimation = null;
 
 let themePreference = loadThemePreference();
 setThemePreference(themePreference, { persist: false });
-
-if (typeof prefersDarkScheme.addEventListener === 'function') {
-  prefersDarkScheme.addEventListener('change', () => {
-    if (themePreference === 'system') {
-      applyTheme('system');
-    }
-  });
-} else if (typeof prefersDarkScheme.addListener === 'function') {
-  prefersDarkScheme.addListener(() => {
-    if (themePreference === 'system') {
-      applyTheme('system');
-    }
-  });
-}
 
 function fmt(value, digits = 3) {
   return value == null ? '—' : Number(value).toFixed(digits);
@@ -109,16 +95,12 @@ function loadThemePreference() {
   } catch (_) {
     // ignore
   }
-  return 'system';
+  return 'light';
 }
 
 function saveThemePreference(pref) {
   try {
-    if (pref === 'system') {
-      window.localStorage.removeItem(THEME_STORAGE_KEY);
-    } else {
-      window.localStorage.setItem(THEME_STORAGE_KEY, pref);
-    }
+    window.localStorage.setItem(THEME_STORAGE_KEY, pref);
   } catch (_) {
     // ignore persistence errors
   }
@@ -132,30 +114,21 @@ function resolveTheme(pref) {
 }
 
 function preferenceDescription(pref, resolved) {
-  if (pref === 'system') {
-    return `Thème auto (${resolved === 'dark' ? 'sombre' : 'clair'})`;
-  }
   return `Thème ${pref === 'dark' ? 'sombre' : 'clair'}`;
 }
 
 function actionDescription(pref) {
-  if (pref === 'system') {
-    return 'revenir au thème automatique';
-  }
   return `passer au thème ${pref === 'dark' ? 'sombre' : 'clair'}`;
 }
 
 function iconForPreference(pref) {
-  if (pref === 'system') {
-    return '🖥️';
-  }
   return pref === 'dark' ? '🌙' : '☀️';
 }
 
 function getNextThemePreference(current) {
   const index = THEME_CYCLE.indexOf(current);
   if (index === -1) {
-    return 'system';
+    return 'light';
   }
   return THEME_CYCLE[(index + 1) % THEME_CYCLE.length];
 }
@@ -281,9 +254,6 @@ async function handleAuthSubmit(event) {
     setAuthMessage('Les mots de passe ne correspondent pas.', 'error');
     return;
   }
-
-  const pendingMessage = authMode === 'register' ? 'Création du compte…' : 'Connexion…';
-  setAuthMessage(pendingMessage, null);
 
   authButtonController.setLoading(true);
   authButtonController.setDisabled(true);
