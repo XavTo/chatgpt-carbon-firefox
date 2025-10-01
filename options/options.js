@@ -15,7 +15,7 @@ const defaults = {
   networkKWhPerGBMobile: 0.14,
   useMobileNetwork: false,
   enableLogging: false,
-  logApiUrl: ""
+  logApiUrl: "http://localhost:3000/events"
 };
 
 async function load() {

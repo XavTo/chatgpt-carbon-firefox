@@ -39,7 +39,7 @@ const DEFAULTS = {
     maxScale: 4.0
   },
   enableLogging: false,
-  logApiUrl: ""
+  logApiUrl: "http://localhost:3000/events"
 };
 
 let settingsCache = null;
@@ -75,18 +75,28 @@ function now() {
 }
 
 function logEvent(entry, providedSettings) {
+  if (!entry || typeof entry.type !== "string") {
+    return;
+  }
+
+  const { type, requestId, ...rest } = entry;
+  const payload = {
+    timestamp: new Date().toISOString(),
+    ...rest,
+  };
+
   const send = (settings) => {
     if (!settings?.enableLogging) return;
     const url = (settings.logApiUrl || "").trim();
     if (!url) return;
-    const payload = {
-      timestamp: new Date().toISOString(),
-      ...entry
-    };
     fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
+      body: JSON.stringify({
+        type,
+        requestId: requestId ?? null,
+        payload,
+      })
     }).catch((err) => {
       console.warn("ChatGPT Carbon: échec de l'envoi vers l'API", err);
     });

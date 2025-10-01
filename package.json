@@ -4,12 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start:server": "node server/index.js"
+    "server": "npm --prefix server run start:dev",
+    "server:build": "npm --prefix server run build"
   },
-  "dependencies": {
-    "cors": "^2.8.5",
-    "dotenv": "^16.4.5",
-    "express": "^4.19.2",
-    "pg": "^8.11.5"
-  }
+  "dependencies": {}
 }
