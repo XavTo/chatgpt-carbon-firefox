@@ -1,5 +1,12 @@
 // background.js (Manifest V3 - Firefox compatible)
 
+import {
+  ensureValidAccessToken,
+  clearAuthState,
+  API_BASE_URL,
+  EVENTS_URL,
+} from './lib/auth.js';
+
 const browserApi = typeof browser !== 'undefined' ? browser : chrome;
 
 // Les requêtes chatgpt.com transitent désormais par /backend-api/f/conversation ;
@@ -9,7 +16,9 @@ const CHAT_ENDPOINTS = [
   "*://api.openai.com/v1/chat/completions*"
 ];
 
-// Valeurs par défaut (modifiable via Options)
+// Valeurs par défaut
+let lastEstimation = null;
+
 const DEFAULTS = {
   baseWhPerQuery: 2.9,             // 2.9 Wh : moyenne par requête (GPTFootprint)  :contentReference[oaicite:4]{index=4}
   minWhPerQuery: 0.3,              // 0.3 Wh : estimation plus récente (Epoch)      :contentReference[oaicite:5]{index=5}
@@ -38,30 +47,13 @@ const DEFAULTS = {
     minScale: 0.4,
     maxScale: 4.0
   },
-  enableLogging: false,
-  logApiUrl: "http://localhost:3000/events"
+  enableLogging: true,
+  apiBaseUrl: API_BASE_URL,
+  logApiUrl: EVENTS_URL,
 };
 
-let settingsCache = null;
 async function getSettings() {
-  if (settingsCache) return settingsCache;
-  const { settings } = await browserApi.storage.sync.get("settings");
-  settingsCache = mergeSettings(settings);
-  // rétro-compatibilité profonde
-  if (!settingsCache.regionCarbonIntensity) settingsCache.regionCarbonIntensity = DEFAULTS.regionCarbonIntensity;
-  return settingsCache;
-}
-browserApi.storage.onChanged.addListener((changes, area) => {
-  if (area === "sync" && changes.settings) {
-    settingsCache = mergeSettings(changes.settings.newValue);
-  }
-});
-
-function mergeSettings(settings) {
-  const merged = Object.assign({}, DEFAULTS, settings || {});
-  merged.scale = Object.assign({}, DEFAULTS.scale, settings?.scale || {});
-  merged.regionCarbonIntensity = Object.assign({}, DEFAULTS.regionCarbonIntensity, settings?.regionCarbonIntensity || {});
-  return merged;
+  return DEFAULTS;
 }
 
 // Mémo sur requêtes afin de relier début/fin et accumuler octets
@@ -85,27 +77,57 @@ function logEvent(entry, providedSettings) {
     ...rest,
   };
 
-  const send = (settings) => {
+  const send = async (settings) => {
     if (!settings?.enableLogging) return;
-    const url = (settings.logApiUrl || "").trim();
-    if (!url) return;
-    fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        type,
-        requestId: requestId ?? null,
-        payload,
-      })
-    }).catch((err) => {
-      console.warn("ChatGPT Carbon: échec de l'envoi vers l'API", err);
+    const url = EVENTS_URL;
+    const apiBase = API_BASE_URL;
+
+    const body = JSON.stringify({
+      type,
+      requestId: requestId ?? null,
+      payload,
     });
+
+    const attemptSend = async (retry = true) => {
+      const authState = await ensureValidAccessToken(apiBase);
+      if (!authState || !authState.accessToken) {
+        console.warn('ChatGPT Carbon: aucune session authentifiée, journalisation ignorée.');
+        return;
+      }
+
+      const headers = {
+        'Content-Type': 'application/json',
+        Authorization: `${authState.tokenType || 'Bearer'} ${authState.accessToken}`,
+      };
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body,
+      });
+
+      if (response.status === 401 && retry) {
+        await clearAuthState();
+        return attemptSend(false);
+      }
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Statut ${response.status}: ${errorText}`);
+      }
+    };
+
+    try {
+      await attemptSend(true);
+    } catch (err) {
+      console.warn("ChatGPT Carbon: échec de l'envoi vers l'API", err);
+    }
   };
 
   if (providedSettings) {
-    send(providedSettings);
+    send(providedSettings).catch(() => {});
   } else {
-    getSettings().then(send).catch(() => {});
+    getSettings().then((s) => send(s)).catch(() => {});
   }
 }
 
@@ -248,6 +270,7 @@ browserApi.webRequest.onCompleted.addListener(
     }
 
     browserApi.runtime.sendMessage({ type: "gptcarbon:estimation", data: payload });
+    lastEstimation = payload;
 
     logEvent({
       type: "estimation",
@@ -275,3 +298,10 @@ browserApi.webRequest.onErrorOccurred.addListener(
   },
   { urls: CHAT_ENDPOINTS }
 );
+
+browserApi.runtime.onMessage.addListener((message) => {
+  if (message?.type === 'gptcarbon:getLastEstimation') {
+    return Promise.resolve({ data: lastEstimation });
+  }
+  return undefined;
+});

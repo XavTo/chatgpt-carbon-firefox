@@ -5,6 +5,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import configuration from './config/configuration';
 import { HealthController } from './health.controller';
 import { LoggingModule } from './logging/logging.module';
+import { AuthModule } from './auth/auth.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { LoggingModule } from './logging/logging.module';
       }),
     }),
     LoggingModule,
+    AuthModule,
   ],
   controllers: [HealthController],
 })

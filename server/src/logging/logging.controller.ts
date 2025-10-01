@@ -1,12 +1,14 @@
-import { Body, Controller, Get, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
 
 import { CreateLogEventDto } from './dto/create-log-event.dto';
 import { LoggingService } from './logging.service';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 @Controller('events')
 export class LoggingController {
   constructor(private readonly loggingService: LoggingService) {}
 
+  @UseGuards(JwtAuthGuard)
   @Post()
   async create(@Body() dto: CreateLogEventDto) {
     const created = await this.loggingService.create(dto);

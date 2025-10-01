@@ -2,11 +2,12 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { LogEvent } from '../entities/log-event.entity';
+import { AuthModule } from '../auth/auth.module';
 import { LoggingController } from './logging.controller';
 import { LoggingService } from './logging.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([LogEvent])],
+  imports: [TypeOrmModule.forFeature([LogEvent]), AuthModule],
   controllers: [LoggingController],
   providers: [LoggingService],
   exports: [LoggingService],
