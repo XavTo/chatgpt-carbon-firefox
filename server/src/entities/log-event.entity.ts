@@ -9,18 +9,18 @@ import {
 @Entity({ name: 'log_events' })
 export class LogEvent {
   @PrimaryGeneratedColumn('uuid')
-  id!: string;
+  id: string;
 
-  @CreateDateColumn({ type: 'timestamptz' })
-  createdAt!: Date;
+  @CreateDateColumn()
+  createdAt: Date;
 
   @Column({ length: 120 })
   @Index()
-  type!: string;
+  type: string;
 
-  @Column({ nullable: true, length: 120 })
-  requestId!: string | null;
+  @Column({ type: 'varchar', length: 120, nullable: true })
+  requestId: string | null;
 
   @Column({ type: 'jsonb' })
-  payload!: Record<string, unknown>;
+  payload: Record<string, unknown>;
 }
