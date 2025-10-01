@@ -67,6 +67,13 @@ function mergeSettings(settings) {
 // Mémo sur requêtes afin de relier début/fin et accumuler octets
 const reqState = new Map(); // key: requestId -> {start, url, method, reqBytes, respBytes, contentLength}
 
+function now() {
+  if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
+    return performance.now();
+  }
+  return Date.now();
+}
+
 function logEvent(entry, providedSettings) {
   const send = (settings) => {
     if (!settings?.enableLogging) return;
@@ -105,7 +112,7 @@ browserApi.webRequest.onBeforeRequest.addListener(
   (details) => {
     if (details.method !== "POST") return;
     reqState.set(details.requestId, {
-      start: performance.now(),
+      start: now(),
       url: details.url,
       method: details.method,
       reqBytes: guessBytesFromBody(details),
@@ -151,7 +158,7 @@ browserApi.webRequest.onCompleted.addListener(
   async (details) => {
     const st = reqState.get(details.requestId);
     if (!st) return;
-    const durationSec = Math.max(0.001, (performance.now() - st.start) / 1000);
+    const durationSec = Math.max(0.001, (now() - st.start) / 1000);
 
     // Octets estimés (réseau) : Content-Length si disponible
     const respBytes = (st.contentLength != null) ? st.contentLength : 0;

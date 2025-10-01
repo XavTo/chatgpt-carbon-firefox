@@ -8,14 +8,19 @@
   const panel = document.createElement('div');
   panel.id = 'gptcarbon-panel';
   panel.innerHTML = `
-    <div class="gptc-head">ChatGPT Carbon (estimation)</div>
-    <div class="gptc-row"><span>Région</span><span id="gptc-region">—</span></div>
-    <div class="gptc-row"><span>Durée</span><span id="gptc-dur">—</span></div>
-    <div class="gptc-row"><span>Énergie calcul</span><span id="gptc-comp">—</span></div>
-    <div class="gptc-row"><span>Énergie réseau</span><span id="gptc-net">—</span></div>
-    <div class="gptc-row total"><span>Total</span><span id="gptc-wh">—</span></div>
-    <div class="gptc-row co2"><span>Émissions</span><span id="gptc-co2">—</span></div>
-    <div class="gptc-foot">Heuristique; facteurs modifiables dans Options.</div>
+    <div class="gptc-head">
+      <span class="gptc-title">ChatGPT Carbon (estimation)</span>
+      <button type="button" id="gptc-toggle" class="gptc-toggle" aria-label="Réduire le panneau" aria-expanded="true">−</button>
+    </div>
+    <div class="gptc-body">
+      <div class="gptc-row"><span>Région</span><span id="gptc-region">—</span></div>
+      <div class="gptc-row"><span>Durée</span><span id="gptc-dur">—</span></div>
+      <div class="gptc-row"><span>Énergie calcul</span><span id="gptc-comp">—</span></div>
+      <div class="gptc-row"><span>Énergie réseau</span><span id="gptc-net">—</span></div>
+      <div class="gptc-row total"><span>Total</span><span id="gptc-wh">—</span></div>
+      <div class="gptc-row co2"><span>Émissions</span><span id="gptc-co2">—</span></div>
+      <div class="gptc-foot">Heuristique; facteurs modifiables dans Options.</div>
+    </div>
   `;
   document.documentElement.appendChild(panel);
 
@@ -27,6 +32,40 @@
     while (v >= 1024 && i<u.length-1) { v/=1024; i++; }
     return `${v.toFixed(2)} ${u[i]}`;
   };
+
+  const toggleBtn = panel.querySelector('#gptc-toggle');
+  const STORAGE_KEY = 'gptcarbon:panelCollapsed';
+
+  function applyCollapsed(state) {
+    panel.classList.toggle('gptc-collapsed', state);
+    const expanded = !state;
+    toggleBtn.setAttribute('aria-expanded', String(expanded));
+    toggleBtn.setAttribute('aria-label', expanded ? 'Réduire le panneau' : 'Déployer le panneau');
+    toggleBtn.textContent = expanded ? '−' : '+';
+  }
+
+  function loadCollapsed() {
+    try {
+      return window.localStorage.getItem(STORAGE_KEY) === '1';
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function saveCollapsed(state) {
+    try {
+      window.localStorage.setItem(STORAGE_KEY, state ? '1' : '0');
+    } catch (_) {}
+  }
+
+  let isCollapsed = loadCollapsed();
+  applyCollapsed(isCollapsed);
+
+  toggleBtn.addEventListener('click', () => {
+    isCollapsed = !isCollapsed;
+    applyCollapsed(isCollapsed);
+    saveCollapsed(isCollapsed);
+  });
 
   // Estimation des tailles: récupère le dernier prompt (zone textarea) et le dernier bloc de réponse
   function getLastSizes() {
