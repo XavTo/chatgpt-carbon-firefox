@@ -1,31 +1,20 @@
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 
 import { AppModule } from './app.module';
 
-type CorsOrigin = string | RegExp;
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, { bufferLogs: true });
-  const configService = app.get(ConfigService);
-
-  const origins = configService.get<CorsOrigin[] | undefined>('config.app.corsOrigins');
-  app.enableCors({
-    origin: origins ?? true,
-    credentials: false,
-  });
-
+  const app = await NestFactory.create(AppModule);
   app.useGlobalPipes(new ValidationPipe({
-    whitelist: true,
-    forbidNonWhitelisted: true,
     transform: true,
+    transformOptions: { enableImplicitConversion: true },
+    whitelist: true,
   }));
 
-  const port = configService.get<number>('config.app.port', 3000);
-  await app.listen(port);
-  console.log(`ChatGPT Carbon telemetry server ready on port ${port}`);
+  await app.listen(process.env.PORT ?? 5000);
+  console.log(`ChatGPT Carbon telemetry server ready on port ${process.env.PORT ?? 5000}`);
 }
 
 bootstrap();

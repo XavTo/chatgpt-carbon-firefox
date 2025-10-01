@@ -20,7 +20,7 @@ import { LoggingModule } from './logging/logging.module';
         url: config.get<string>('config.database.url'),
         autoLoadEntities: true,
         synchronize: true,
-        logging: config.get<boolean>('config.database.logging'),
+        logging: config.get<boolean>('config.database.logging') || false,
       }),
     }),
     LoggingModule,
