@@ -13,6 +13,9 @@ const browserApi = typeof browser !== 'undefined'
   : (typeof chrome !== 'undefined' ? chrome : null);
 
 const elements = {
+  themeToggle: document.getElementById('themeToggle'),
+  themeIcon: document.getElementById('themeIcon'),
+  themeToggleLabel: document.getElementById('themeToggleLabel'),
   authSection: document.getElementById('authSection'),
   authMessage: document.getElementById('authMessage'),
   authEmail: document.getElementById('authEmail'),
@@ -28,6 +31,12 @@ const elements = {
   estimation: document.getElementById('estimation'),
 };
 
+const THEME_STORAGE_KEY = 'gptcarbon:themePreference';
+const THEME_CYCLE = ['system', 'light', 'dark'];
+const prefersDarkScheme = typeof window.matchMedia === 'function'
+  ? window.matchMedia('(prefers-color-scheme: dark)')
+  : { matches: false };
+
 const authButtonController = createLoadingButton({
   container: document.getElementById('authButtonContainer'),
   id: 'authSubmit',
@@ -41,6 +50,23 @@ if (elements.serverUrl) {
 
 let authMode = 'login';
 let lastEstimation = null;
+
+let themePreference = loadThemePreference();
+setThemePreference(themePreference, { persist: false });
+
+if (typeof prefersDarkScheme.addEventListener === 'function') {
+  prefersDarkScheme.addEventListener('change', () => {
+    if (themePreference === 'system') {
+      applyTheme('system');
+    }
+  });
+} else if (typeof prefersDarkScheme.addListener === 'function') {
+  prefersDarkScheme.addListener(() => {
+    if (themePreference === 'system') {
+      applyTheme('system');
+    }
+  });
+}
 
 function fmt(value, digits = 3) {
   return value == null ? '—' : Number(value).toFixed(digits);
@@ -72,6 +98,100 @@ function setDashboardMessage(text, variant) {
   if (variant) {
     elements.dashboardMessage.classList.add(variant);
   }
+}
+
+function loadThemePreference() {
+  try {
+    const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
+    if (stored && THEME_CYCLE.includes(stored)) {
+      return stored;
+    }
+  } catch (_) {
+    // ignore
+  }
+  return 'system';
+}
+
+function saveThemePreference(pref) {
+  try {
+    if (pref === 'system') {
+      window.localStorage.removeItem(THEME_STORAGE_KEY);
+    } else {
+      window.localStorage.setItem(THEME_STORAGE_KEY, pref);
+    }
+  } catch (_) {
+    // ignore persistence errors
+  }
+}
+
+function resolveTheme(pref) {
+  if (pref === 'light' || pref === 'dark') {
+    return pref;
+  }
+  return prefersDarkScheme.matches ? 'dark' : 'light';
+}
+
+function preferenceDescription(pref, resolved) {
+  if (pref === 'system') {
+    return `Thème auto (${resolved === 'dark' ? 'sombre' : 'clair'})`;
+  }
+  return `Thème ${pref === 'dark' ? 'sombre' : 'clair'}`;
+}
+
+function actionDescription(pref) {
+  if (pref === 'system') {
+    return 'revenir au thème automatique';
+  }
+  return `passer au thème ${pref === 'dark' ? 'sombre' : 'clair'}`;
+}
+
+function iconForPreference(pref) {
+  if (pref === 'system') {
+    return '🖥️';
+  }
+  return pref === 'dark' ? '🌙' : '☀️';
+}
+
+function getNextThemePreference(current) {
+  const index = THEME_CYCLE.indexOf(current);
+  if (index === -1) {
+    return 'system';
+  }
+  return THEME_CYCLE[(index + 1) % THEME_CYCLE.length];
+}
+
+function updateThemeToggle(pref, resolved) {
+  if (!elements.themeToggle) {
+    return;
+  }
+  const next = getNextThemePreference(pref);
+  const currentLabel = preferenceDescription(pref, resolved);
+  const actionLabel = actionDescription(next);
+  const accessibleLabel = `${currentLabel}. Cliquer pour ${actionLabel}.`;
+
+  if (elements.themeIcon) {
+    elements.themeIcon.textContent = iconForPreference(pref);
+  }
+  elements.themeToggle.setAttribute('aria-label', accessibleLabel);
+  elements.themeToggle.title = accessibleLabel;
+  if (elements.themeToggleLabel) {
+    elements.themeToggleLabel.textContent = accessibleLabel;
+  }
+}
+
+function applyTheme(pref) {
+  const resolved = resolveTheme(pref);
+  document.body.dataset.theme = resolved;
+  document.body.dataset.themePreference = pref;
+  updateThemeToggle(pref, resolved);
+}
+
+function setThemePreference(pref, { persist = true } = {}) {
+  themePreference = pref;
+  if (persist) {
+    saveThemePreference(pref);
+  }
+  applyTheme(pref);
 }
 
 function setAuthMode(mode) {
@@ -235,6 +355,13 @@ function setupListeners() {
     setAuthMode(authMode === 'register' ? 'login' : 'register');
   });
   elements.logoutButton.addEventListener('click', handleLogout);
+
+  if (elements.themeToggle) {
+    elements.themeToggle.addEventListener('click', () => {
+      const nextPref = getNextThemePreference(themePreference);
+      setThemePreference(nextPref);
+    });
+  }
 
   browserApi.runtime.onMessage.addListener((message) => {
     if (message?.type === 'gptcarbon:estimation' && message.data) {

@@ -28,11 +28,8 @@
     "default_popup": "popup/popup.html"
   },
   "content_scripts": [{
-
-
     "matches": ["https://chatgpt.com/*"],
     "js": ["content.js"],
-    "css": ["ui.css"],
     "run_at": "document_end"
   }]
 }
