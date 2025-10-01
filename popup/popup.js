@@ -6,8 +6,10 @@ function fmtBytes(b) {
   return `${v.toFixed(2)} ${u[i]}`;
 }
 
+const browserApi = typeof browser !== 'undefined' ? browser : chrome;
+
 const lastDiv = document.getElementById('last');
-browser.runtime.onMessage.addListener((msg) => {
+browserApi.runtime.onMessage.addListener((msg) => {
   if (!msg || msg.type !== 'gptcarbon:estimation') return;
   const d = msg.data;
   lastDiv.innerHTML = `
@@ -22,5 +24,5 @@ browser.runtime.onMessage.addListener((msg) => {
 
 document.getElementById('openOptions').addEventListener('click', (e) => {
   e.preventDefault();
-  browser.runtime.openOptionsPage();
+  browserApi.runtime.openOptionsPage();
 });

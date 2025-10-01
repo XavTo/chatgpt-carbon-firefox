@@ -63,6 +63,15 @@
     </div>
   </fieldset>
 
+  <fieldset>
+    <legend>Journalisation (API)</legend>
+    <div class="grid">
+      <label>Activer l'envoi</label><input id="enableLogging" type="checkbox">
+      <label>URL API (POST)</label><input id="logApiUrl" type="url" placeholder="https://mon-api/estimations">
+    </div>
+    <small>L’API recevra un JSON avec les mesures (voir README). L’URL peut pointer vers le serveur Express fourni.</small>
+  </fieldset>
+
   <div class="actions">
     <button id="save">Enregistrer</button>
     <span id="status"></span>

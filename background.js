@@ -1,5 +1,7 @@
 // background.js (Manifest V3 - Firefox compatible)
 
+const browserApi = typeof browser !== 'undefined' ? browser : chrome;
+
 const CHAT_ENDPOINTS = [
   "*://chatgpt.com/backend-api/conversation*",
   "*://api.openai.com/v1/chat/completions*"
@@ -33,23 +35,32 @@ const DEFAULTS = {
     replyWeight: 0.3,
     minScale: 0.4,
     maxScale: 4.0
-  }
+  },
+  enableLogging: false,
+  logApiUrl: ""
 };
 
 let settingsCache = null;
 async function getSettings() {
   if (settingsCache) return settingsCache;
-  const { settings } = await browser.storage.sync.get("settings");
-  settingsCache = Object.assign({}, DEFAULTS, settings || {});
+  const { settings } = await browserApi.storage.sync.get("settings");
+  settingsCache = mergeSettings(settings);
   // rétro-compatibilité profonde
   if (!settingsCache.regionCarbonIntensity) settingsCache.regionCarbonIntensity = DEFAULTS.regionCarbonIntensity;
   return settingsCache;
 }
-browser.storage.onChanged.addListener((changes, area) => {
+browserApi.storage.onChanged.addListener((changes, area) => {
   if (area === "sync" && changes.settings) {
-    settingsCache = Object.assign({}, DEFAULTS, changes.settings.newValue || {});
+    settingsCache = mergeSettings(changes.settings.newValue);
   }
 });
+
+function mergeSettings(settings) {
+  const merged = Object.assign({}, DEFAULTS, settings || {});
+  merged.scale = Object.assign({}, DEFAULTS.scale, settings?.scale || {});
+  merged.regionCarbonIntensity = Object.assign({}, DEFAULTS.regionCarbonIntensity, settings?.regionCarbonIntensity || {});
+  return merged;
+}
 
 // Mémo sur requêtes afin de relier début/fin et accumuler octets
 const reqState = new Map(); // key: requestId -> {start, url, method, reqBytes, respBytes, contentLength}
@@ -63,7 +74,7 @@ function guessBytesFromBody(details) {
   return 0;
 }
 
-browser.webRequest.onBeforeRequest.addListener(
+browserApi.webRequest.onBeforeRequest.addListener(
   async (details) => {
     if (details.method !== "POST") return;
     reqState.set(details.requestId, {
@@ -79,7 +90,7 @@ browser.webRequest.onBeforeRequest.addListener(
   ["requestBody"]
 );
 
-browser.webRequest.onHeadersReceived.addListener(
+browserApi.webRequest.onHeadersReceived.addListener(
   (details) => {
     const st = reqState.get(details.requestId);
     if (!st) return;
@@ -93,7 +104,7 @@ browser.webRequest.onHeadersReceived.addListener(
   ["responseHeaders"]
 );
 
-browser.webRequest.onCompleted.addListener(
+browserApi.webRequest.onCompleted.addListener(
   async (details) => {
     const st = reqState.get(details.requestId);
     if (!st) return;
@@ -107,17 +118,15 @@ browser.webRequest.onCompleted.addListener(
     // Demande au content script des proxys de tailles (prompt/reply chars)
     // via message relayé à l’onglet d’origine (si présent)
     let promptChars = 0, replyChars = 0;
-    try {
-      const tabs = await browser.tabs.query({ url: "*://chatgpt.com/*" });
-      if (tabs && tabs.length) {
-        const tabId = tabs[0].id;
-        const resp = await browser.tabs.sendMessage(tabId, { type: "gptcarbon:lastMessageSizes" });
+    if (details.tabId >= 0) {
+      try {
+        const resp = await browserApi.tabs.sendMessage(details.tabId, { type: "gptcarbon:lastMessageSizes" });
         if (resp && typeof resp.promptChars === "number" && typeof resp.replyChars === "number") {
           promptChars = resp.promptChars;
           replyChars = resp.replyChars;
         }
-      }
-    } catch {}
+      } catch {}
+    }
 
     const settings = await getSettings();
 
@@ -165,16 +174,35 @@ browser.webRequest.onCompleted.addListener(
       kgPerKWh
     };
 
-    try {
-      const tabs = await browser.tabs.query({ url: "*://chatgpt.com/*" });
-      for (const t of tabs) {
-        browser.tabs.sendMessage(t.id, { type: "gptcarbon:estimation", data: payload });
-      }
-    } catch {}
+    if (details.tabId >= 0) {
+      try {
+        browserApi.tabs.sendMessage(details.tabId, { type: "gptcarbon:estimation", data: payload });
+      } catch {}
+    }
 
-    browser.runtime.sendMessage({ type: "gptcarbon:estimation", data: payload });
+    browserApi.runtime.sendMessage({ type: "gptcarbon:estimation", data: payload });
+
+    logEstimation(settings, payload).catch(() => {});
 
     reqState.delete(details.requestId);
   },
   { urls: CHAT_ENDPOINTS }
 );
+
+async function logEstimation(settings, payload) {
+  if (!settings.enableLogging) return;
+  const url = (settings.logApiUrl || "").trim();
+  if (!url) return;
+  try {
+    await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        timestamp: new Date().toISOString(),
+        ...payload
+      })
+    });
+  } catch (err) {
+    console.warn("ChatGPT Carbon: échec de l'envoi vers l'API", err);
+  }
+}

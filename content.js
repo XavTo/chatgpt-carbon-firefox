@@ -3,6 +3,7 @@
 // (2) affiche les estimations reçues du background.
 
 (function () {
+  const browserApi = typeof browser !== 'undefined' ? browser : chrome;
   // UI
   const panel = document.createElement('div');
   panel.id = 'gptcarbon-panel';
@@ -45,7 +46,7 @@
   }
 
   // Répond au background
-  browser.runtime.onMessage.addListener((msg) => {
+  browserApi.runtime.onMessage.addListener((msg) => {
     if (!msg || !msg.type) return;
 
     if (msg.type === "gptcarbon:estimation") {
@@ -60,10 +61,11 @@
   });
 
   // Canal “pull” utilisé par background pour obtenir prompt/reply
-  browser.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  browserApi.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (!msg || !msg.type) return;
     if (msg.type === "gptcarbon:lastMessageSizes") {
       sendResponse(getLastSizes());
+      return true;
     }
   });
 })();

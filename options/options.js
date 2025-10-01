@@ -1,3 +1,5 @@
+const browserApi = typeof browser !== 'undefined' ? browser : chrome;
+
 const defaults = {
   baseWhPerQuery: 2.9,
   minWhPerQuery: 0.3,
@@ -11,12 +13,14 @@ const defaults = {
   selectedRegion: "Europe",
   networkKWhPerGBFixed: 0.03,
   networkKWhPerGBMobile: 0.14,
-  useMobileNetwork: false
+  useMobileNetwork: false,
+  enableLogging: false,
+  logApiUrl: ""
 };
 
 async function load() {
-  const { settings } = await browser.storage.sync.get("settings");
-  const s = Object.assign({}, defaults, settings || {});
+  const { settings } = await browserApi.storage.sync.get("settings");
+  const s = mergeSettings(settings);
   // bind fields
   document.getElementById('baseWh').value = s.baseWhPerQuery;
   document.getElementById('minWh').value  = s.minWhPerQuery;
@@ -33,6 +37,8 @@ async function load() {
   document.getElementById('kwhGbFixed').value = s.networkKWhPerGBFixed;
   document.getElementById('kwhGbMobile').value = s.networkKWhPerGBMobile;
   document.getElementById('useMobile').checked = s.useMobileNetwork;
+  document.getElementById('enableLogging').checked = s.enableLogging;
+  document.getElementById('logApiUrl').value = s.logApiUrl || '';
 
   const regionSel = document.getElementById('region');
   regionSel.innerHTML = '';
@@ -85,12 +91,21 @@ async function load() {
       selectedRegion: document.getElementById('region').value,
       networkKWhPerGBFixed: parseFloat(document.getElementById('kwhGbFixed').value),
       networkKWhPerGBMobile: parseFloat(document.getElementById('kwhGbMobile').value),
-      useMobileNetwork: document.getElementById('useMobile').checked
+      useMobileNetwork: document.getElementById('useMobile').checked,
+      enableLogging: document.getElementById('enableLogging').checked,
+      logApiUrl: document.getElementById('logApiUrl').value.trim()
     };
 
-    await browser.storage.sync.set({ settings: newSettings });
+    await browserApi.storage.sync.set({ settings: newSettings });
     document.getElementById('status').textContent = "Enregistré.";
     setTimeout(()=> document.getElementById('status').textContent="", 1500);
   };
 }
 document.addEventListener('DOMContentLoaded', load);
+
+function mergeSettings(settings) {
+  const merged = Object.assign({}, defaults, settings || {});
+  merged.scale = Object.assign({}, defaults.scale, settings?.scale || {});
+  merged.regionCarbonIntensity = Object.assign({}, defaults.regionCarbonIntensity, settings?.regionCarbonIntensity || {});
+  return merged;
+}
