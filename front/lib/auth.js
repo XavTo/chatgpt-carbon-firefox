@@ -3,19 +3,8 @@ const browserApi = typeof browser !== 'undefined'
   : (typeof chrome !== 'undefined' ? chrome : null);
 const AUTH_STORAGE_KEY = 'authState';
 
-function resolveRawApiBaseUrl() {
-  const globalScope = typeof globalThis !== 'undefined' ? globalThis : window;
-  const envFromProcess = globalScope?.process?.env?.GPTCARBON_API_BASE_URL;
-  const envFromWindow = globalScope?.GPTCARBON_API_BASE_URL;
-  const envFromConfig = globalScope?.__GPTCARBON_CONFIG__?.API_BASE_URL;
-  const viteEnv = typeof import.meta !== 'undefined'
-    ? import.meta?.env?.VITE_GPTCARBON_API_BASE_URL
-    : undefined;
-
-  return envFromWindow || envFromProcess || envFromConfig || viteEnv || 'http://localhost:3000';
-}
-
-const RAW_API_BASE_URL = resolveRawApiBaseUrl();
+const RAW_API_BASE_URL = "https://chatgpt-carbon.xavto.fr";
+console.log('API_BASE_URL:', RAW_API_BASE_URL);
 
 function normalizeBaseUrl(url) {
   if (!url) return '';

@@ -244,14 +244,30 @@ async function handleAuthSubmit(event) {
   const email = elements.authEmail.value.trim().toLowerCase();
   const password = elements.authPassword.value;
   const confirm = elements.authPasswordConfirm.value;
+  // Basic client-side validation before sending requests
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const passwordRegex = /(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}/;
 
   if (!email || !password) {
     setAuthMessage('Veuillez renseigner votre e-mail et votre mot de passe.', 'error');
     return;
   }
 
+  if (!emailRegex.test(email)) {
+    setAuthMessage('Veuillez saisir une adresse e-mail valide.', 'error');
+    elements.authEmail.focus();
+    return;
+  }
+
+  if (!passwordRegex.test(password)) {
+    setAuthMessage('Le mot de passe doit faire au moins 8 caractères et contenir une majuscule, une minuscule, un chiffre et un caractère spécial.', 'error');
+    elements.authPassword.focus();
+    return;
+  }
+
   if (authMode === 'register' && password !== confirm) {
     setAuthMessage('Les mots de passe ne correspondent pas.', 'error');
+    elements.authPasswordConfirm.focus();
     return;
   }
 
