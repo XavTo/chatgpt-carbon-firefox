@@ -6,8 +6,11 @@ import {
   ensureValidAccessToken,
   API_BASE_URL,
 } from '../lib/auth.js';
+import { createLoadingButton } from './loading-button.js';
 
-const browserApi = typeof browser !== 'undefined' ? browser : chrome;
+const browserApi = typeof browser !== 'undefined'
+  ? browser
+  : (typeof chrome !== 'undefined' ? chrome : null);
 
 const elements = {
   authSection: document.getElementById('authSection'),
@@ -16,7 +19,6 @@ const elements = {
   authPassword: document.getElementById('authPassword'),
   authPasswordConfirmRow: document.getElementById('authPasswordConfirmRow'),
   authPasswordConfirm: document.getElementById('authPasswordConfirm'),
-  authSubmit: document.getElementById('authSubmit'),
   toggleAuthMode: document.getElementById('toggleAuthMode'),
   dashboardSection: document.getElementById('dashboardSection'),
   dashboardMessage: document.getElementById('dashboardMessage'),
@@ -25,6 +27,13 @@ const elements = {
   logoutButton: document.getElementById('logoutButton'),
   estimation: document.getElementById('estimation'),
 };
+
+const authButtonController = createLoadingButton({
+  container: document.getElementById('authButtonContainer'),
+  id: 'authSubmit',
+  label: 'Se connecter',
+  variant: 'primary',
+});
 
 if (elements.serverUrl) {
   elements.serverUrl.textContent = API_BASE_URL;
@@ -69,7 +78,9 @@ function setAuthMode(mode) {
   authMode = mode;
   const isRegister = mode === 'register';
   elements.authPasswordConfirmRow.classList.toggle('hidden', !isRegister);
-  elements.authSubmit.textContent = isRegister ? 'Créer un compte' : 'Se connecter';
+  authButtonController.setLabel(isRegister ? 'Créer un compte' : 'Se connecter');
+  authButtonController.setLoading(false);
+  authButtonController.setDisabled(false);
   elements.toggleAuthMode.textContent = isRegister ? 'J’ai déjà un compte' : 'Créer un compte';
   elements.authPassword.autocomplete = isRegister ? 'new-password' : 'current-password';
   if (!isRegister) {
@@ -154,7 +165,8 @@ async function handleAuthSubmit(event) {
   const pendingMessage = authMode === 'register' ? 'Création du compte…' : 'Connexion…';
   setAuthMessage(pendingMessage, null);
 
-  elements.authSubmit.disabled = true;
+  authButtonController.setLoading(true);
+  authButtonController.setDisabled(true);
   elements.toggleAuthMode.disabled = true;
 
   try {
@@ -180,7 +192,8 @@ async function handleAuthSubmit(event) {
     elements.authPasswordConfirm.value = '';
     elements.authPassword.focus();
   } finally {
-    elements.authSubmit.disabled = false;
+    authButtonController.setLoading(false);
+    authButtonController.setDisabled(false);
     elements.toggleAuthMode.disabled = false;
   }
 }
@@ -217,7 +230,7 @@ async function hydrateEstimation() {
 }
 
 function setupListeners() {
-  elements.authSubmit.addEventListener('click', handleAuthSubmit);
+  authButtonController.setOnClick(handleAuthSubmit);
   elements.toggleAuthMode.addEventListener('click', () => {
     setAuthMode(authMode === 'register' ? 'login' : 'register');
   });

@@ -3,7 +3,9 @@
 // (2) affiche les estimations reçues du background.
 
 (function () {
-  const browserApi = typeof browser !== 'undefined' ? browser : chrome;
+  const browserApi = typeof browser !== 'undefined'
+    ? browser
+    : (typeof chrome !== 'undefined' ? chrome : null);
   // UI
   const panel = document.createElement('div');
   panel.id = 'gptcarbon-panel';

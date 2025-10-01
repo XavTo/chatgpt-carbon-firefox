@@ -7,7 +7,9 @@ import {
   EVENTS_URL,
 } from './lib/auth.js';
 
-const browserApi = typeof browser !== 'undefined' ? browser : chrome;
+const browserApi = typeof browser !== 'undefined'
+  ? browser
+  : (typeof chrome !== 'undefined' ? chrome : null);
 
 // Les requêtes chatgpt.com transitent désormais par /backend-api/f/conversation ;
 // on accepte toute variante contenant "conversation" pour rester robuste.

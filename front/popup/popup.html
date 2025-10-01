@@ -118,6 +118,56 @@
       background: rgba(79, 70, 229, 0.08);
     }
 
+    .loading-button.ghost {
+      background: transparent;
+      box-shadow: none;
+    }
+
+    .loading-button.ghost .loading-indicator {
+      border-color: rgba(79, 70, 229, 0.35);
+      border-top-color: #4f46e5;
+    }
+
+    .loading-button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-height: 34px;
+      padding-inline: 18px;
+      font-weight: 600;
+      position: relative;
+      width: 100%;
+    }
+
+    .loading-button .label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .loading-button .loading-indicator {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      border: 2px solid rgba(255, 255, 255, 0.6);
+      border-top-color: #ffffff;
+      animation: spin 0.8s linear infinite;
+    }
+
+    .loading-button.is-loading .label {
+      opacity: 0.92;
+    }
+
+    @keyframes spin {
+      from {
+        transform: rotate(0deg);
+      }
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
     .top-row {
       display: flex;
       justify-content: space-between;
@@ -204,7 +254,7 @@
         <label for="authPasswordConfirm">Confirmer le mot de passe</label>
         <input type="password" id="authPasswordConfirm" autocomplete="new-password">
       </div>
-      <button id="authSubmit" class="primary">Se connecter</button>
+      <div id="authButtonContainer"></div>
       <button id="toggleAuthMode" class="ghost" type="button">Créer un compte</button>
     </section>
 
@@ -224,6 +274,8 @@
     </section>
   </main>
 
+  <script src="vendor/react.production.min.js"></script>
+  <script src="vendor/react-dom.production.min.js"></script>
   <script type="module" src="popup.js"></script>
 </body>
 </html>
