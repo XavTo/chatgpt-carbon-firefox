@@ -26,9 +26,5 @@
     "js": ["content.js"],
     "css": ["ui.css"],
     "run_at": "document_end"
-  }],
-  "options_ui": {
-    "page": "options/options.html",
-    "open_in_tab": true
-  }
+  }]
 }

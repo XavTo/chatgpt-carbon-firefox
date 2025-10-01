@@ -29,4 +29,10 @@ export default registerAs('config', () => ({
       'postgresql://postgres:postgres@localhost:5432/chatgptcarbon',
     logging: (process.env.DB_LOGGING ?? 'false').toLowerCase() === 'true',
   },
+  auth: {
+    jwtAccessSecret: process.env.JWT_ACCESS_SECRET ?? 'change-me-access-secret',
+    jwtRefreshSecret: process.env.JWT_REFRESH_SECRET ?? 'change-me-refresh-secret',
+    accessTokenTtlSec: parseInt(process.env.JWT_ACCESS_TTL ?? '900', 10),
+    refreshTokenTtlSec: parseInt(process.env.JWT_REFRESH_TTL ?? String(60 * 60 * 24 * 7), 10),
+  },
 }));

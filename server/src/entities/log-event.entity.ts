@@ -18,7 +18,7 @@ export class LogEvent {
   @Index()
   type!: string;
 
-  @Column({ nullable: true, length: 120 })
+  @Column({ type: 'varchar', length: 120, nullable: true })
   requestId!: string | null;
 
   @Column({ type: 'jsonb' })
