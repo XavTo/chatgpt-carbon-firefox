@@ -44,9 +44,9 @@ recevoir, stocker et restituer les événements envoyés par l’extension.
    cp server/.env.example server/.env
    ```
 
-   Paramétrez l’accès PostgreSQL (`DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`,
-   `DB_PASSWORD`). Les tables sont créées automatiquement grâce à
-   `synchronize: true`.
+   Paramétrez la connexion PostgreSQL via `DATABASE_URL` (par exemple
+   `postgresql://postgres:postgres@localhost:5432/chatgptcarbon`). Les tables
+   sont créées automatiquement grâce à `synchronize: true`.
 
 2. Installez les dépendances du serveur :
 

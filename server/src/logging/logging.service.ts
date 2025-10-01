@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
 import { CreateLogEventDto } from './dto/create-log-event.dto';
-import { LogEvent } from './entities/log-event.entity';
+import { LogEvent } from '../entities/log-event.entity';
 
 @Injectable()
 export class LoggingService {

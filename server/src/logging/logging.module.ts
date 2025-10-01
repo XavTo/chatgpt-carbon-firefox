@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
-import { LogEvent } from './entities/log-event.entity';
+import { LogEvent } from '../entities/log-event.entity';
 import { LoggingController } from './logging.controller';
 import { LoggingService } from './logging.service';
 

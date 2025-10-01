@@ -17,11 +17,7 @@ import { LoggingModule } from './logging/logging.module';
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
         type: 'postgres',
-        host: config.get<string>('config.database.host'),
-        port: config.get<number>('config.database.port'),
-        username: config.get<string>('config.database.user'),
-        password: config.get<string>('config.database.password'),
-        database: config.get<string>('config.database.name'),
+        url: config.get<string>('config.database.url'),
         autoLoadEntities: true,
         synchronize: true,
         logging: config.get<boolean>('config.database.logging'),
