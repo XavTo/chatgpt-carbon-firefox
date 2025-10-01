@@ -357,9 +357,42 @@ function setupListeners() {
   });
 }
 
+function setupPasswordToggles() {
+  document.querySelectorAll('.password-toggle').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const targetId = btn.getAttribute('data-target');
+      const input = document.getElementById(targetId);
+      if (!input) return;
+      const isPassword = input.getAttribute('type') === 'password';
+      input.setAttribute('type', isPassword ? 'text' : 'password');
+      // Update icon after toggling type
+      const newIsPassword = input.getAttribute('type') === 'password';
+      const iconSrc = newIsPassword
+        ? '../images/eye-open.svg'
+        : '../images/eye-close.svg';
+      btn.innerHTML = `<img src="${iconSrc}" alt="" style="width:1em;height:1em;vertical-align:middle;">`;
+      btn.setAttribute(
+        'aria-label',
+        newIsPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'
+      );
+    });
+    // Set initial icon
+    const targetId = btn.getAttribute('data-target');
+    const input = document.getElementById(targetId);
+    if (input) {
+      const isPassword = input.getAttribute('type') === 'password';
+      const iconSrc = isPassword
+        ? '../images/eye-open.svg'
+        : '../images/eye-close.svg';
+      btn.innerHTML = `<img src="${iconSrc}" alt="" style="width:1em;height:1em;vertical-align:middle;">`;
+    }
+  });
+}
+
 async function init() {
   setAuthMode('login');
   setupListeners();
+  setupPasswordToggles();
   await hydrateEstimation();
   await refreshAuthState();
 }

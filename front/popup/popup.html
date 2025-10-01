@@ -240,6 +240,37 @@
       background: var(--color-surface);
     }
 
+    .input-with-icon {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    .input-with-icon input {
+      width: 100%;
+      padding-right: 40px;
+    }
+
+    .password-toggle {
+      position: absolute;
+      right: 6px;
+      background: transparent;
+      border: none;
+      width: 28px;
+      height: 28px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px;
+      cursor: pointer;
+      color: var(--color-subtle);
+    }
+
+    .password-toggle:hover {
+      background: var(--color-field-bg);
+      color: var(--color-text);
+    }
+
     button {
       border-radius: 999px;
       padding: 9px 18px;
@@ -325,9 +356,15 @@
     }
 
     .message {
-      min-height: 4px;
-      font-size: 12px;
-      color: var(--color-message);
+        min-height: 4px;
+        font-size: 12px;
+        color: var(--color-message);
+        /* Ensure long messages wrap and never overflow the popup width */
+        max-width: 100%;
+        box-sizing: border-box;
+        white-space: normal;
+        word-break: break-word;
+        overflow-wrap: anywhere;
     }
 
     .message.error {
@@ -409,13 +446,19 @@
         <label for="authEmail">Adresse e-mail</label>
         <input type="email" id="authEmail" autocomplete="email" spellcheck="false" required>
       </div>
-      <div class="field">
+      <div class="field password-field">
         <label for="authPassword">Mot de passe</label>
-        <input type="password" id="authPassword" autocomplete="current-password" required>
+        <div class="input-with-icon">
+          <input type="password" id="authPassword" autocomplete="current-password" required>
+          <button type="button" class="password-toggle" data-target="authPassword" aria-label="Afficher le mot de passe">👁️</button>
+        </div>
       </div>
       <div class="field hidden" id="authPasswordConfirmRow">
         <label for="authPasswordConfirm">Confirmer le mot de passe</label>
-        <input type="password" id="authPasswordConfirm" autocomplete="new-password">
+        <div class="input-with-icon">
+          <input type="password" id="authPasswordConfirm" autocomplete="new-password">
+          <button type="button" class="password-toggle" data-target="authPasswordConfirm" aria-label="Afficher le mot de passe">👁️</button>
+        </div>
       </div>
       <div id="authButtonContainer"></div>
       <button id="toggleAuthMode" class="ghost" type="button">Créer un compte</button>
