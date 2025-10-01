@@ -3,6 +3,12 @@
   "name": "ChatGPT Carbon Estimator",
   "description": "Estime les kgCO₂ par requête ChatGPT selon la région, la durée et la taille des messages.",
   "version": "0.1.0",
+  "icons": {
+    "16": "images/favicon.ico",
+    "32": "images/favicon.ico",
+    "48": "images/favicon.ico",
+    "128": "images/favicon.ico"
+  },
   "permissions": [
     "storage",
     "webRequest",
@@ -22,6 +28,8 @@
     "default_popup": "popup/popup.html"
   },
   "content_scripts": [{
+
+
     "matches": ["https://chatgpt.com/*"],
     "js": ["content.js"],
     "css": ["ui.css"],
