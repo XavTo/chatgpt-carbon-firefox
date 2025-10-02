@@ -4,8 +4,9 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 
 import configuration from './config/configuration';
 import { HealthController } from './health.controller';
-import { LoggingModule } from './logging/logging.module';
 import { AuthModule } from './auth/auth.module';
+import { ChatUsageModule } from './chat-usage/chat-usage.module';
+import { LoggingModule } from './logging/logging.module';
 
 @Module({
   imports: [
@@ -24,8 +25,9 @@ import { AuthModule } from './auth/auth.module';
         logging: config.get<boolean>('config.database.logging') || false,
       }),
     }),
-    LoggingModule,
     AuthModule,
+    LoggingModule,
+    ChatUsageModule,
   ],
   controllers: [HealthController],
 })

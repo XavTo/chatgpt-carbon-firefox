@@ -16,6 +16,7 @@ export class UsersService {
       email,
       passwordHash,
       refreshTokenHash: null,
+      role: 'user',
     });
     return this.usersRepository.save(user);
   }

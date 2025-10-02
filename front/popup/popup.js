@@ -4,6 +4,7 @@ import {
   logoutUser,
   getAuthState,
   ensureValidAccessToken,
+  authenticatedRequest,
   API_BASE_URL,
 } from '../lib/auth.js';
 import { createLoadingButton } from './loading-button.js';
@@ -29,6 +30,30 @@ const elements = {
   serverUrl: document.getElementById('serverUrl'),
   logoutButton: document.getElementById('logoutButton'),
   estimation: document.getElementById('estimation'),
+  tabsContainer: document.getElementById('dashboardTabs'),
+  overviewTab: document.getElementById('overviewTab'),
+  historyTab: document.getElementById('historyTab'),
+  summaryWindow: document.getElementById('summaryWindow'),
+  summaryFrom: document.getElementById('summaryFrom'),
+  summaryTo: document.getElementById('summaryTo'),
+  summaryRefresh: document.getElementById('summaryRefresh'),
+  summaryMessage: document.getElementById('summaryMessage'),
+  summaryRequests: document.getElementById('summaryRequests'),
+  summaryEnergy: document.getElementById('summaryEnergy'),
+  summaryEmissions: document.getElementById('summaryEmissions'),
+  summaryDuration: document.getElementById('summaryDuration'),
+  summaryData: document.getElementById('summaryData'),
+  historyFilters: document.getElementById('historyFilters'),
+  historyFrom: document.getElementById('historyFrom'),
+  historyTo: document.getElementById('historyTo'),
+  historySearch: document.getElementById('historySearch'),
+  historyReset: document.getElementById('historyReset'),
+  historyMessage: document.getElementById('historyMessage'),
+  historyTableBody: document.getElementById('historyTableBody'),
+  historyEmpty: document.getElementById('historyEmpty'),
+  historyPrev: document.getElementById('historyPrev'),
+  historyNext: document.getElementById('historyNext'),
+  historyPageInfo: document.getElementById('historyPageInfo'),
 };
 
 const THEME_STORAGE_KEY = 'gptcarbon:themePreference';
@@ -50,6 +75,28 @@ if (elements.serverUrl) {
 
 let authMode = 'login';
 let lastEstimation = null;
+let authenticatedState = null;
+let currentTab = 'overview';
+let historyLoaded = false;
+let summaryReloadTimeout = null;
+let summaryAutoRefreshInterval = null;
+
+const SUMMARY_AUTO_REFRESH_MS = 15000;
+
+const summaryState = {
+  window: '24h',
+  from: null,
+  to: null,
+};
+
+const historyState = {
+  page: 1,
+  pageSize: 10,
+  from: null,
+  to: null,
+  search: '',
+  totalPages: 1,
+};
 
 let themePreference = loadThemePreference();
 setThemePreference(themePreference, { persist: false });
@@ -68,6 +115,300 @@ function fmtBytes(bytes) {
     i += 1;
   }
   return `${v.toFixed(i === 0 ? 0 : 2)} ${units[i]}`;
+}
+
+function formatBytesValue(value) {
+  if (!value) {
+    return '0 B';
+  }
+  try {
+    const big = typeof value === 'bigint' ? value : BigInt(value);
+    if (big <= BigInt(Number.MAX_SAFE_INTEGER)) {
+      return fmtBytes(Number(big));
+    }
+    const units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
+    let current = big;
+    let unitIndex = 0;
+    const base = 1024n;
+    while (current >= base && unitIndex < units.length - 1) {
+      current /= base;
+      unitIndex += 1;
+    }
+    return `${current.toString()} ${units[unitIndex]}`;
+  } catch (err) {
+    const numeric = Number(value);
+    if (Number.isFinite(numeric)) {
+      return fmtBytes(numeric);
+    }
+    return '—';
+  }
+}
+
+function formatDateTime(value) {
+  if (!value) return '—';
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return '—';
+  }
+  return date.toLocaleString();
+}
+
+function parseDateTimeLocal(value) {
+  if (!value) return null;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function setSummaryMessage(text, variant) {
+  if (!elements.summaryMessage) return;
+  elements.summaryMessage.textContent = text || '';
+  elements.summaryMessage.classList.remove('error', 'success');
+  if (variant) {
+    elements.summaryMessage.classList.add(variant);
+  }
+}
+
+function setHistoryMessage(text, variant) {
+  if (!elements.historyMessage) return;
+  elements.historyMessage.textContent = text || '';
+  elements.historyMessage.classList.remove('error', 'success');
+  if (variant) {
+    elements.historyMessage.classList.add(variant);
+  }
+}
+
+function updateSummaryControls() {
+  if (!elements.summaryWindow || !elements.summaryFrom || !elements.summaryTo) return;
+  const isCustom = summaryState.window === 'custom';
+  elements.summaryFrom.classList.toggle('hidden', !isCustom);
+  elements.summaryTo.classList.toggle('hidden', !isCustom);
+}
+
+function computeSummaryRange() {
+  const now = new Date();
+  if (summaryState.window === 'custom') {
+    const from = parseDateTimeLocal(elements.summaryFrom?.value || '');
+    const to = parseDateTimeLocal(elements.summaryTo?.value || '');
+    return { from, to };
+  }
+
+  switch (summaryState.window) {
+    case '24h':
+      return { from: new Date(now.getTime() - 24 * 60 * 60 * 1000), to: now };
+    case '7d':
+      return { from: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000), to: now };
+    case '30d':
+      return { from: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000), to: now };
+    case 'all':
+    default:
+      return { from: null, to: null };
+  }
+}
+
+function renderSummary(data) {
+  if (
+    !elements.summaryRequests ||
+    !elements.summaryEnergy ||
+    !elements.summaryEmissions ||
+    !elements.summaryDuration ||
+    !elements.summaryData
+  ) {
+    return;
+  }
+  if (!data) {
+    elements.summaryRequests.textContent = '—';
+    elements.summaryEnergy.textContent = '—';
+    elements.summaryEmissions.textContent = '—';
+    elements.summaryDuration.textContent = '—';
+    elements.summaryData.textContent = '—';
+    return;
+  }
+
+  elements.summaryRequests.textContent = data.totalRequests?.toLocaleString?.() ?? '0';
+  elements.summaryEnergy.textContent = fmt(data.totalWh ?? data.totalComputeWh ?? 0, 2);
+  elements.summaryEmissions.textContent = fmt(data.totalKgCO2 ?? 0, 4);
+  elements.summaryDuration.textContent = fmt(data.totalDurationSec ?? 0, 1);
+  elements.summaryData.textContent = formatBytesValue(data.totalBytes ?? '0');
+}
+
+async function loadUsageSummary({ silent = false } = {}) {
+  if (!authenticatedState) {
+    return;
+  }
+  const range = computeSummaryRange();
+
+  if (summaryState.window === 'custom') {
+    if ((range.from && range.to && range.from > range.to) || (!range.from && !range.to)) {
+      if (!silent) {
+        setSummaryMessage('Veuillez sélectionner un intervalle valide.', 'error');
+      }
+      return;
+    }
+  }
+
+  const params = new URLSearchParams();
+  if (summaryState.window && summaryState.window !== 'custom') {
+    params.set('window', summaryState.window);
+  }
+  if (range.from) {
+    params.set('from', range.from.toISOString());
+  }
+  if (range.to) {
+    params.set('to', range.to.toISOString());
+  }
+
+  try {
+    const data = await authenticatedRequest(
+      API_BASE_URL,
+      `/usage/summary${params.toString() ? `?${params.toString()}` : ''}`,
+      { method: 'GET' },
+    );
+    renderSummary(data);
+    if (!silent) {
+      setSummaryMessage('', null);
+    }
+  } catch (err) {
+    if (!silent) {
+      setSummaryMessage(err?.message || 'Impossible de récupérer la consommation.', 'error');
+    }
+  }
+}
+
+function renderHistory(data) {
+  if (!elements.historyTableBody || !elements.historyEmpty) {
+    return;
+  }
+
+  const items = Array.isArray(data?.items) ? data.items : [];
+  elements.historyTableBody.innerHTML = '';
+
+  if (items.length === 0) {
+    elements.historyEmpty.classList.remove('hidden');
+  } else {
+    elements.historyEmpty.classList.add('hidden');
+    const rows = items.map((item) => {
+      const occurredAt = formatDateTime(item.occurredAt || item.createdAt);
+      const duration = fmt(item.durationSec ?? 0, 2);
+      const energy = fmt(item.totalWh ?? item.computeWh ?? 0, 3);
+      const emissions = fmt(item.kgCO2 ?? 0, 4);
+      const dataTransfer = formatBytesValue(item.totalBytes ?? '0');
+      const region = item.region || '—';
+      return `
+        <tr>
+          <td title="${item.url || ''}">${occurredAt}</td>
+          <td>${duration}</td>
+          <td>${energy}</td>
+          <td>${emissions}</td>
+          <td>${dataTransfer}</td>
+          <td>${region}</td>
+        </tr>
+      `;
+    });
+    elements.historyTableBody.innerHTML = rows.join('');
+  }
+
+  historyState.page = data?.page ?? historyState.page;
+  historyState.totalPages = data?.totalPages ?? historyState.totalPages;
+
+  if (elements.historyPageInfo) {
+    elements.historyPageInfo.textContent = `Page ${historyState.page} / ${historyState.totalPages}`;
+  }
+  if (elements.historyPrev) {
+    elements.historyPrev.disabled = historyState.page <= 1;
+  }
+  if (elements.historyNext) {
+    elements.historyNext.disabled = historyState.page >= historyState.totalPages;
+  }
+}
+
+async function loadUsageHistory({ resetPage = false } = {}) {
+  if (!authenticatedState) {
+    return;
+  }
+  if (resetPage) {
+    historyState.page = 1;
+  }
+
+  if (historyState.from && historyState.to && historyState.from > historyState.to) {
+    setHistoryMessage('La date de début doit précéder la date de fin.', 'error');
+    return;
+  }
+
+  const params = new URLSearchParams({
+    page: String(historyState.page),
+    pageSize: String(historyState.pageSize),
+  });
+
+  if (historyState.from) {
+    params.set('from', historyState.from.toISOString());
+  }
+  if (historyState.to) {
+    params.set('to', historyState.to.toISOString());
+  }
+  if (historyState.search) {
+    params.set('search', historyState.search);
+  }
+
+  try {
+    const data = await authenticatedRequest(
+      API_BASE_URL,
+      `/usage?${params.toString()}`,
+      { method: 'GET' },
+    );
+    renderHistory(data);
+    setHistoryMessage('', null);
+    historyLoaded = true;
+  } catch (err) {
+    setHistoryMessage(err?.message || 'Impossible de récupérer l\'historique.', 'error');
+  }
+}
+
+function switchTab(tab) {
+  currentTab = tab;
+  const buttons = elements.tabsContainer?.querySelectorAll?.('.tab-button') ?? [];
+  buttons.forEach((button) => {
+    button.classList.toggle('is-active', button.dataset.tab === tab);
+  });
+
+  if (elements.overviewTab) {
+    elements.overviewTab.classList.toggle('hidden', tab !== 'overview');
+  }
+  if (elements.historyTab) {
+    elements.historyTab.classList.toggle('hidden', tab !== 'history');
+  }
+
+  if (tab === 'history' && !historyLoaded) {
+    loadUsageHistory({ resetPage: false });
+  }
+}
+
+function stopSummaryAutoRefresh() {
+  if (summaryAutoRefreshInterval) {
+    clearInterval(summaryAutoRefreshInterval);
+    summaryAutoRefreshInterval = null;
+  }
+  if (summaryReloadTimeout) {
+    clearTimeout(summaryReloadTimeout);
+    summaryReloadTimeout = null;
+  }
+}
+
+function startSummaryAutoRefresh() {
+  stopSummaryAutoRefresh();
+  summaryAutoRefreshInterval = setInterval(() => {
+    if (currentTab === 'overview' && authenticatedState) {
+      loadUsageSummary({ silent: true });
+    }
+  }, SUMMARY_AUTO_REFRESH_MS);
+}
+
+function scheduleSummaryRefresh(delay = 1000) {
+  if (summaryReloadTimeout) {
+    clearTimeout(summaryReloadTimeout);
+  }
+  summaryReloadTimeout = setTimeout(() => {
+    loadUsageSummary({ silent: true });
+  }, delay);
 }
 
 function setAuthMessage(text, variant) {
@@ -201,20 +542,61 @@ function renderEstimation() {
 }
 
 function showAuthView() {
+  authenticatedState = null;
+  stopSummaryAutoRefresh();
   elements.dashboardSection.classList.add('hidden');
   elements.authSection.classList.remove('hidden');
   setDashboardMessage('', null);
+  setSummaryMessage('', null);
+  setHistoryMessage('', null);
+  renderSummary(null);
+  if (elements.historyTableBody) {
+    elements.historyTableBody.innerHTML = '';
+  }
+  if (elements.historyEmpty) {
+    elements.historyEmpty.classList.add('hidden');
+  }
   if (elements.authEmail) {
     elements.authEmail.focus();
   }
 }
 
 function showDashboard(state) {
+  authenticatedState = state;
   elements.authSection.classList.add('hidden');
   elements.dashboardSection.classList.remove('hidden');
   elements.currentUserEmail.textContent = state?.user?.email ?? '';
   setAuthMessage('', null);
   renderEstimation();
+  historyLoaded = false;
+  historyState.page = 1;
+  historyState.totalPages = 1;
+  if (elements.historyFrom) elements.historyFrom.value = '';
+  if (elements.historyTo) elements.historyTo.value = '';
+  if (elements.historySearch) elements.historySearch.value = '';
+  historyState.from = null;
+  historyState.to = null;
+  historyState.search = '';
+  if (elements.historyPageInfo) {
+    elements.historyPageInfo.textContent = 'Page 1 / 1';
+  }
+  if (elements.historyPrev) {
+    elements.historyPrev.disabled = true;
+  }
+  if (elements.historyNext) {
+    elements.historyNext.disabled = true;
+  }
+  if (elements.summaryWindow) {
+    elements.summaryWindow.value = '24h';
+  }
+  summaryState.window = elements.summaryWindow?.value || '24h';
+  updateSummaryControls();
+  setSummaryMessage('', null);
+  setHistoryMessage('', null);
+  currentTab = 'overview';
+  switchTab(currentTab);
+  loadUsageSummary();
+  startSummaryAutoRefresh();
 }
 
 async function refreshAuthState({ preserveMessages = false } = {}) {
@@ -229,7 +611,13 @@ async function refreshAuthState({ preserveMessages = false } = {}) {
   }
 
   if (state?.user) {
-    showDashboard(state);
+    const sameUser = authenticatedState?.user?.id && authenticatedState.user.id === state.user.id;
+    const dashboardVisible = !elements.dashboardSection.classList.contains('hidden');
+    if (sameUser && dashboardVisible) {
+      authenticatedState = state;
+    } else {
+      showDashboard(state);
+    }
   } else {
     if (!preserveMessages) {
       setAuthMessage('', null);
@@ -353,8 +741,91 @@ function setupListeners() {
     if (message?.type === 'gptcarbon:estimation' && message.data) {
       lastEstimation = message.data;
       renderEstimation();
+      scheduleSummaryRefresh(800);
     }
   });
+
+  if (elements.tabsContainer) {
+    const buttons = elements.tabsContainer.querySelectorAll('.tab-button');
+    buttons.forEach((button) => {
+      button.addEventListener('click', () => {
+        const tab = button.getAttribute('data-tab') || 'overview';
+        switchTab(tab);
+      });
+    });
+  }
+
+  if (elements.summaryWindow) {
+    elements.summaryWindow.addEventListener('change', (event) => {
+      summaryState.window = event.target.value;
+      updateSummaryControls();
+      if (summaryState.window !== 'custom') {
+        loadUsageSummary();
+      }
+    });
+  }
+
+  if (elements.summaryRefresh) {
+    elements.summaryRefresh.addEventListener('click', () => {
+      loadUsageSummary();
+    });
+  }
+
+  if (elements.summaryFrom) {
+    elements.summaryFrom.addEventListener('change', () => {
+      if (summaryState.window === 'custom') {
+        scheduleSummaryRefresh(400);
+      }
+    });
+  }
+
+  if (elements.summaryTo) {
+    elements.summaryTo.addEventListener('change', () => {
+      if (summaryState.window === 'custom') {
+        scheduleSummaryRefresh(400);
+      }
+    });
+  }
+
+  if (elements.historyFilters) {
+    elements.historyFilters.addEventListener('submit', (event) => {
+      event.preventDefault();
+      historyState.from = parseDateTimeLocal(elements.historyFrom?.value || '') || null;
+      historyState.to = parseDateTimeLocal(elements.historyTo?.value || '') || null;
+      historyState.search = (elements.historySearch?.value || '').trim();
+      loadUsageHistory({ resetPage: true });
+    });
+  }
+
+  if (elements.historyReset) {
+    elements.historyReset.addEventListener('click', () => {
+      if (elements.historyFrom) elements.historyFrom.value = '';
+      if (elements.historyTo) elements.historyTo.value = '';
+      if (elements.historySearch) elements.historySearch.value = '';
+      historyState.from = null;
+      historyState.to = null;
+      historyState.search = '';
+      loadUsageHistory({ resetPage: true });
+    });
+  }
+
+  if (elements.historyPrev) {
+    elements.historyPrev.addEventListener('click', () => {
+      if (historyState.page > 1) {
+        historyState.page -= 1;
+        loadUsageHistory();
+      }
+    });
+  }
+
+  if (elements.historyNext) {
+    elements.historyNext.addEventListener('click', () => {
+      if (historyState.page < historyState.totalPages) {
+        historyState.page += 1;
+        loadUsageHistory();
+      }
+    });
+  }
 }
 
 function setupPasswordToggles() {
@@ -393,6 +864,8 @@ async function init() {
   setAuthMode('login');
   setupListeners();
   setupPasswordToggles();
+  summaryState.window = elements.summaryWindow?.value || summaryState.window;
+  updateSummaryControls();
   await hydrateEstimation();
   await refreshAuthState();
 }
