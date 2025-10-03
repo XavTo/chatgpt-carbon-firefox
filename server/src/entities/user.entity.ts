@@ -22,6 +22,9 @@ export class User {
   @Column({ type: 'varchar', length: 512, nullable: true })
   refreshTokenHash!: string | null;
 
+  @Column({ type: 'varchar', length: 30, default: 'user' })
+  role!: 'user' | 'admin';
+
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt!: Date;
 

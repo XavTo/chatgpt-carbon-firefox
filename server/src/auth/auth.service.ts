@@ -13,6 +13,7 @@ export interface AuthTokensResponse {
   user: {
     id: string;
     email: string;
+    role: 'user' | 'admin';
   };
   accessToken: string;
   refreshToken: string;
@@ -80,9 +81,11 @@ export class AuthService {
   }
 
   private async generateAuthTokens(user: User): Promise<AuthTokensResponse> {
+    const role = user.role === 'admin' ? 'admin' : 'user';
     const payloadBase = {
       sub: user.id,
       email: user.email,
+      role,
     };
 
     const accessTokenTtl = this.accessTokenTtl;
@@ -110,6 +113,7 @@ export class AuthService {
       user: {
         id: user.id,
         email: user.email,
+        role,
       },
       accessToken,
       refreshToken,

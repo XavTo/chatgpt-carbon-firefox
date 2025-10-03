@@ -421,6 +421,169 @@
       font-size: 13px;
     }
 
+    .tabs {
+      display: flex;
+      gap: 8px;
+      align-items: stretch;
+      border-bottom: 1px solid var(--color-border);
+      padding-bottom: 6px;
+      margin-bottom: 8px;
+    }
+
+    .tab-button {
+      flex: 1;
+      border-radius: 10px;
+      padding: 8px 12px;
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--color-muted);
+      font-weight: 600;
+    }
+
+    .tab-button.active {
+      border-color: var(--color-field-focus-border);
+      background: var(--color-field-bg);
+      color: var(--color-text);
+      box-shadow: inset 0 0 0 1px rgba(99, 102, 241, 0.15);
+    }
+
+    .tab-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .summary-card {
+      border-radius: 12px;
+      border: 1px solid var(--color-border);
+      background: var(--color-field-bg);
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .summary-header {
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .summary-title {
+      font-weight: 600;
+      font-size: 13px;
+    }
+
+    .summary-controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .summary-select {
+      border-radius: 8px;
+      border: 1px solid var(--color-field-border);
+      background: var(--color-surface);
+      color: inherit;
+      padding: 6px 8px;
+      font: inherit;
+    }
+
+    .summary-custom-range {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .summary-custom-range input {
+      border-radius: 8px;
+      border: 1px solid var(--color-field-border);
+      background: var(--color-surface);
+      color: inherit;
+      padding: 4px 6px;
+      font: inherit;
+    }
+
+    .summary-metrics {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 10px;
+    }
+
+    .summary-metric {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .summary-metric strong {
+      font-size: 15px;
+    }
+
+    .history-filters {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: flex-end;
+    }
+
+    .history-filters .field {
+      min-width: 120px;
+    }
+
+    .history-filters input {
+      font-size: 12px;
+      padding: 6px 8px;
+    }
+
+    .history-table-wrapper {
+      border-radius: 12px;
+      border: 1px solid var(--color-border);
+      background: var(--color-field-bg);
+      overflow: hidden;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+
+    thead {
+      background: rgba(99, 102, 241, 0.08);
+    }
+
+    th, td {
+      padding: 8px 10px;
+      text-align: left;
+      border-bottom: 1px solid var(--color-border);
+    }
+
+    tbody tr:last-child td {
+      border-bottom: none;
+    }
+
+    .history-pagination {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .history-pagination button {
+      padding: 6px 12px;
+      font-size: 12px;
+    }
+
+    .history-info {
+      font-size: 12px;
+      color: var(--color-muted);
+    }
+
     .empty-state {
       color: var(--color-empty);
       font-style: italic;
@@ -474,8 +637,86 @@
         <button id="logoutButton" class="ghost" type="button">Se déconnecter</button>
       </div>
       <div class="message" id="dashboardMessage"></div>
-      <div id="estimation" class="estimation">
-        <p class="empty-state">Aucune estimation récente.</p>
+      <div class="tabs" id="dashboardTabs">
+        <button class="tab-button active" type="button" data-tab="overview">Résumé</button>
+        <button class="tab-button" type="button" data-tab="history">Historique</button>
+      </div>
+      <div id="tabOverview" class="tab-panel">
+        <div class="summary-card">
+          <div class="summary-header">
+            <span class="summary-title">Consommation globale</span>
+            <div class="summary-controls">
+              <select id="summaryWindow" class="summary-select">
+                <option value="60">Dernière heure</option>
+                <option value="1440" selected>24 heures</option>
+                <option value="10080">7 jours</option>
+                <option value="43200">30 jours</option>
+                <option value="all">Depuis le début</option>
+                <option value="custom">Personnalisée…</option>
+              </select>
+              <div id="summaryCustomRange" class="summary-custom-range hidden">
+                <input type="datetime-local" id="summaryFrom">
+                <input type="datetime-local" id="summaryTo">
+                <button id="summaryApply" class="ghost" type="button">Appliquer</button>
+              </div>
+            </div>
+          </div>
+          <div class="history-info" id="summaryRangeInfo"></div>
+          <div class="summary-metrics">
+            <div class="summary-metric">
+              <span>Requêtes</span>
+              <strong id="summaryCount">0</strong>
+            </div>
+            <div class="summary-metric">
+              <span>Énergie totale</span>
+              <strong id="summaryTotalWh">0 Wh</strong>
+            </div>
+            <div class="summary-metric">
+              <span>Émissions</span>
+              <strong id="summaryKgCO2">0 kgCO₂</strong>
+            </div>
+            <div class="summary-metric">
+              <span>Durée cumulée</span>
+              <strong id="summaryDuration">0 s</strong>
+            </div>
+          </div>
+        </div>
+        <div id="estimation" class="estimation">
+          <p class="empty-state">Aucune estimation récente.</p>
+        </div>
+      </div>
+      <div id="tabHistory" class="tab-panel hidden">
+        <div class="history-filters">
+          <div class="field">
+            <label for="historyFrom">Du</label>
+            <input type="date" id="historyFrom">
+          </div>
+          <div class="field">
+            <label for="historyTo">Au</label>
+            <input type="date" id="historyTo">
+          </div>
+          <button id="historyApply" class="ghost" type="button">Appliquer</button>
+          <button id="historyReset" class="ghost" type="button">Réinitialiser</button>
+        </div>
+        <div class="history-table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Énergie (Wh)</th>
+                <th>Émissions (kgCO₂)</th>
+                <th>Durée (s)</th>
+              </tr>
+            </thead>
+            <tbody id="historyTableBody"></tbody>
+          </table>
+          <div id="historyEmpty" class="empty-state hidden">Aucune consommation enregistrée.</div>
+        </div>
+        <div class="history-pagination">
+          <button id="historyPrev" class="ghost" type="button">Précédent</button>
+          <span class="history-info" id="historyPageInfo"></span>
+          <button id="historyNext" class="ghost" type="button">Suivant</button>
+        </div>
       </div>
     </section>
   </main>

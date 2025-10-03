@@ -4,21 +4,34 @@ import { Repository } from 'typeorm';
 
 import { CreateLogEventDto } from './dto/create-log-event.dto';
 import { LogEvent } from '../entities/log-event.entity';
+import { JwtPayload } from '../auth/jwt-payload.interface';
+import { ConsumptionService, EstimationPayload } from '../consumption/consumption.service';
 
 @Injectable()
 export class LoggingService {
   constructor(
     @InjectRepository(LogEvent)
     private readonly repo: Repository<LogEvent>,
+    private readonly consumptionService: ConsumptionService,
   ) {}
 
-  async create(dto: CreateLogEventDto): Promise<LogEvent> {
+  async create(dto: CreateLogEventDto, user: JwtPayload | null): Promise<LogEvent> {
     const entity = this.repo.create({
       type: dto.type,
       requestId: dto.requestId ?? null,
       payload: dto.payload,
     });
-    return this.repo.save(entity);
+    const saved = await this.repo.save(entity);
+
+    if (dto.type === 'estimation' && user?.sub) {
+      await this.consumptionService.recordEstimation(
+        user.sub,
+        (dto.payload ?? {}) as EstimationPayload,
+        dto.requestId ?? null,
+      );
+    }
+
+    return saved;
   }
 
   async getRecent(limit?: number): Promise<LogEvent[]> {

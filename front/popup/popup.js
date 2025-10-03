@@ -4,6 +4,7 @@ import {
   logoutUser,
   getAuthState,
   ensureValidAccessToken,
+  clearAuthState,
   API_BASE_URL,
 } from '../lib/auth.js';
 import { createLoadingButton } from './loading-button.js';
@@ -28,7 +29,29 @@ const elements = {
   currentUserEmail: document.getElementById('currentUserEmail'),
   serverUrl: document.getElementById('serverUrl'),
   logoutButton: document.getElementById('logoutButton'),
+  dashboardTabs: document.getElementById('dashboardTabs'),
+  tabOverview: document.getElementById('tabOverview'),
+  tabHistory: document.getElementById('tabHistory'),
+  summaryWindow: document.getElementById('summaryWindow'),
+  summaryCustomRange: document.getElementById('summaryCustomRange'),
+  summaryFrom: document.getElementById('summaryFrom'),
+  summaryTo: document.getElementById('summaryTo'),
+  summaryApply: document.getElementById('summaryApply'),
+  summaryCount: document.getElementById('summaryCount'),
+  summaryTotalWh: document.getElementById('summaryTotalWh'),
+  summaryKgCO2: document.getElementById('summaryKgCO2'),
+  summaryDuration: document.getElementById('summaryDuration'),
+  summaryRangeInfo: document.getElementById('summaryRangeInfo'),
   estimation: document.getElementById('estimation'),
+  historyFrom: document.getElementById('historyFrom'),
+  historyTo: document.getElementById('historyTo'),
+  historyApply: document.getElementById('historyApply'),
+  historyReset: document.getElementById('historyReset'),
+  historyTableBody: document.getElementById('historyTableBody'),
+  historyEmpty: document.getElementById('historyEmpty'),
+  historyPrev: document.getElementById('historyPrev'),
+  historyNext: document.getElementById('historyNext'),
+  historyPageInfo: document.getElementById('historyPageInfo'),
 };
 
 const THEME_STORAGE_KEY = 'gptcarbon:themePreference';
@@ -50,6 +73,27 @@ if (elements.serverUrl) {
 
 let authMode = 'login';
 let lastEstimation = null;
+let currentAuthState = null;
+let currentTab = 'overview';
+let summaryState = null;
+let summaryFilters = {
+  mode: 'window',
+  windowMinutes: 1440,
+  from: null,
+  to: null,
+};
+let historyState = {
+  items: [],
+  page: 1,
+  limit: 10,
+  totalPages: 1,
+  total: 0,
+};
+let historyFilters = {
+  from: null,
+  to: null,
+};
+let historyLoaded = false;
 
 let themePreference = loadThemePreference();
 setThemePreference(themePreference, { persist: false });
@@ -68,6 +112,119 @@ function fmtBytes(bytes) {
     i += 1;
   }
   return `${v.toFixed(i === 0 ? 0 : 2)} ${units[i]}`;
+}
+
+function fmtDateTime(value) {
+  if (!value) return '—';
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.valueOf())) return '—';
+  return date.toLocaleString('fr-FR', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function fmtDuration(seconds) {
+  const total = Number(seconds) || 0;
+  if (total <= 0) {
+    return '0 s';
+  }
+  if (total < 60) {
+    return `${fmt(total, 1)} s`;
+  }
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const secs = Math.floor(total % 60);
+  const parts = [];
+  if (hours) parts.push(`${hours} h`);
+  if (minutes) parts.push(`${minutes} min`);
+  if (!hours && secs) parts.push(`${secs} s`);
+  return parts.join(' ') || '0 s';
+}
+
+function describeSummaryRange(fromIso, toIso) {
+  if (!fromIso && !toIso) {
+    return 'Période : depuis le début';
+  }
+
+  const from = fromIso ? new Date(fromIso) : null;
+  const to = toIso ? new Date(toIso) : null;
+
+  if (from && to) {
+    return `Période : ${fmtDateTime(from)} → ${fmtDateTime(to)}`;
+  }
+  if (from) {
+    return `Période : depuis ${fmtDateTime(from)}`;
+  }
+  if (to) {
+    return `Période : jusqu’au ${fmtDateTime(to)}`;
+  }
+  return 'Période : —';
+}
+
+function resetDashboardData() {
+  currentTab = 'overview';
+  summaryState = null;
+  summaryFilters = {
+    mode: 'window',
+    windowMinutes: 1440,
+    from: null,
+    to: null,
+  };
+  historyState = {
+    items: [],
+    page: 1,
+    limit: 10,
+    totalPages: 1,
+    total: 0,
+  };
+  historyFilters = { from: null, to: null };
+  historyLoaded = false;
+
+  if (elements.summaryWindow) {
+    elements.summaryWindow.value = '1440';
+  }
+  if (elements.summaryCustomRange) {
+    elements.summaryCustomRange.classList.add('hidden');
+  }
+  if (elements.summaryFrom) elements.summaryFrom.value = '';
+  if (elements.summaryTo) elements.summaryTo.value = '';
+
+  if (elements.historyFrom) elements.historyFrom.value = '';
+  if (elements.historyTo) elements.historyTo.value = '';
+
+  if (elements.tabOverview) elements.tabOverview.classList.remove('hidden');
+  if (elements.tabHistory) elements.tabHistory.classList.add('hidden');
+  if (elements.dashboardTabs) {
+    elements.dashboardTabs.querySelectorAll('.tab-button').forEach((btn) => {
+      btn.classList.toggle('active', btn.getAttribute('data-tab') === 'overview');
+    });
+  }
+
+  renderSummary();
+  renderHistory();
+}
+
+function parseDateInput(value, { endOfDay = false } = {}) {
+  if (!value) return null;
+  const timePart = endOfDay ? 'T23:59:59.999' : 'T00:00:00.000';
+  const date = new Date(`${value}${timePart}`);
+  if (Number.isNaN(date.valueOf())) {
+    return null;
+  }
+  return date.toISOString();
+}
+
+function parseDateTimeLocal(value) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.valueOf())) {
+    return null;
+  }
+  return date.toISOString();
 }
 
 function setAuthMessage(text, variant) {
@@ -200,10 +357,89 @@ function renderEstimation() {
   `;
 }
 
+function renderSummary() {
+  if (!elements.summaryCount) return;
+  if (!summaryState) {
+    elements.summaryCount.textContent = '0';
+    elements.summaryTotalWh.textContent = '0 Wh';
+    elements.summaryKgCO2.textContent = '0 kgCO₂';
+    elements.summaryDuration.textContent = '0 s';
+    elements.summaryRangeInfo.textContent = 'Période : —';
+    return;
+  }
+
+  elements.summaryCount.textContent = String(summaryState.count ?? 0);
+  elements.summaryTotalWh.textContent = `${fmt(summaryState.totalWh ?? 0, 2)} Wh`;
+  elements.summaryKgCO2.textContent = `${fmt(summaryState.totalKgCO2 ?? 0, 4)} kgCO₂`;
+  elements.summaryDuration.textContent = fmtDuration(summaryState.totalDurationSec ?? 0);
+  elements.summaryRangeInfo.textContent = describeSummaryRange(summaryState.from, summaryState.to);
+}
+
+function renderHistory() {
+  if (!elements.historyTableBody || !elements.historyEmpty) return;
+  const items = Array.isArray(historyState.items) ? historyState.items : [];
+  elements.historyTableBody.innerHTML = '';
+
+  if (items.length === 0) {
+    elements.historyEmpty.classList.remove('hidden');
+  } else {
+    elements.historyEmpty.classList.add('hidden');
+    items.forEach((item) => {
+      const tr = document.createElement('tr');
+      const dateCell = document.createElement('td');
+      dateCell.textContent = fmtDateTime(item.occurredAt);
+      const energyCell = document.createElement('td');
+      energyCell.textContent = fmt(item.totalWh, 3);
+      const co2Cell = document.createElement('td');
+      co2Cell.textContent = fmt(item.kgCO2, 4);
+      const durationCell = document.createElement('td');
+      durationCell.textContent = fmtDuration(item.durationSec);
+      tr.append(dateCell, energyCell, co2Cell, durationCell);
+      elements.historyTableBody.appendChild(tr);
+    });
+  }
+
+  if (elements.historyPrev) {
+    elements.historyPrev.disabled = historyState.page <= 1;
+  }
+  if (elements.historyNext) {
+    elements.historyNext.disabled = historyState.page >= historyState.totalPages;
+  }
+  if (elements.historyPageInfo) {
+    elements.historyPageInfo.textContent = `Page ${historyState.page} / ${historyState.totalPages} · ${historyState.total} éléments`;
+  }
+}
+
+function setActiveTab(tab) {
+  currentTab = tab === 'history' ? 'history' : 'overview';
+
+  if (elements.tabOverview) {
+    elements.tabOverview.classList.toggle('hidden', currentTab !== 'overview');
+  }
+  if (elements.tabHistory) {
+    elements.tabHistory.classList.toggle('hidden', currentTab !== 'history');
+  }
+
+  if (elements.dashboardTabs) {
+    elements.dashboardTabs.querySelectorAll('.tab-button').forEach((btn) => {
+      const buttonTab = btn.getAttribute('data-tab');
+      btn.classList.toggle('active', buttonTab === currentTab);
+    });
+  }
+
+  if (currentTab === 'history' && !historyLoaded) {
+    historyLoaded = true;
+    loadHistory().catch((err) => {
+      setDashboardMessage(err?.message || 'Impossible de charger l’historique.', 'error');
+    });
+  }
+}
+
 function showAuthView() {
   elements.dashboardSection.classList.add('hidden');
   elements.authSection.classList.remove('hidden');
   setDashboardMessage('', null);
+  resetDashboardData();
   if (elements.authEmail) {
     elements.authEmail.focus();
   }
@@ -215,6 +451,11 @@ function showDashboard(state) {
   elements.currentUserEmail.textContent = state?.user?.email ?? '';
   setAuthMessage('', null);
   renderEstimation();
+  setActiveTab(currentTab);
+  renderSummary();
+  refreshConsumptionSummary({ silent: true }).catch((err) => {
+    setDashboardMessage(err?.message || 'Impossible de charger la consommation.', 'error');
+  });
 }
 
 async function refreshAuthState({ preserveMessages = false } = {}) {
@@ -229,8 +470,10 @@ async function refreshAuthState({ preserveMessages = false } = {}) {
   }
 
   if (state?.user) {
+    currentAuthState = state;
     showDashboard(state);
   } else {
+    currentAuthState = null;
     if (!preserveMessages) {
       setAuthMessage('', null);
     }
@@ -335,6 +578,227 @@ async function hydrateEstimation() {
   }
 }
 
+async function apiRequest(path, { method = 'GET', searchParams, body } = {}) {
+  const state = await ensureValidAccessToken(API_BASE_URL);
+  if (!state || !state.accessToken) {
+    currentAuthState = null;
+    throw new Error('Session expirée. Veuillez vous reconnecter.');
+  }
+
+  currentAuthState = state;
+  const url = new URL(path, API_BASE_URL);
+  if (searchParams && typeof searchParams === 'object') {
+    Object.entries(searchParams).forEach(([key, value]) => {
+      if (value === null || value === undefined || value === '') {
+        return;
+      }
+      url.searchParams.set(key, String(value));
+    });
+  }
+
+  const headers = {
+    'Content-Type': 'application/json',
+    Authorization: `${state.tokenType || 'Bearer'} ${state.accessToken}`,
+  };
+
+  const response = await fetch(url.toString(), {
+    method,
+    headers,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+
+  const text = await response.text();
+  let data = null;
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch (err) {
+      // ignore JSON parse errors
+    }
+  }
+
+  if (response.status === 401) {
+    await clearAuthState();
+    currentAuthState = null;
+    throw new Error('Session expirée. Veuillez vous reconnecter.');
+  }
+
+  if (!response.ok) {
+    const message = data?.message || data?.error || `Erreur ${response.status}`;
+    throw new Error(message);
+  }
+
+  return data;
+}
+
+async function refreshConsumptionSummary({ silent = false } = {}) {
+  try {
+    const params = {};
+    if (summaryFilters.mode === 'window' && summaryFilters.windowMinutes) {
+      params.windowMinutes = summaryFilters.windowMinutes;
+    } else if (summaryFilters.mode === 'custom') {
+      if (summaryFilters.from) params.from = summaryFilters.from;
+      if (summaryFilters.to) params.to = summaryFilters.to;
+    }
+
+    const data = await apiRequest('/consumption/summary', { searchParams: params });
+    summaryState = data || null;
+    renderSummary();
+  } catch (err) {
+    summaryState = null;
+    renderSummary();
+    if (!silent) {
+      setDashboardMessage(err?.message || 'Impossible de récupérer la consommation.', 'error');
+    }
+    throw err;
+  }
+}
+
+async function loadHistory({ page } = {}) {
+  const targetPage = page ? Math.max(1, page) : historyState.page || 1;
+  try {
+    const params = {
+      page: targetPage,
+      limit: historyState.limit,
+    };
+    if (historyFilters.from) params.from = historyFilters.from;
+    if (historyFilters.to) params.to = historyFilters.to;
+
+    const data = await apiRequest('/consumption/history', { searchParams: params });
+    historyState = {
+      items: data?.items ?? [],
+      page: data?.page ?? targetPage,
+      limit: data?.limit ?? historyState.limit,
+      totalPages: data?.totalPages ?? 1,
+      total: data?.total ?? 0,
+    };
+    renderHistory();
+  } catch (err) {
+    if (err?.message) {
+      setDashboardMessage(err.message, 'error');
+    }
+    throw err;
+  }
+}
+
+function handleSummaryWindowChange() {
+  if (!elements.summaryWindow) return;
+  const value = elements.summaryWindow.value;
+
+  if (value === 'custom') {
+    summaryFilters.mode = 'custom';
+    if (elements.summaryCustomRange) {
+      elements.summaryCustomRange.classList.remove('hidden');
+    }
+    return;
+  }
+
+  if (elements.summaryCustomRange) {
+    elements.summaryCustomRange.classList.add('hidden');
+  }
+
+  if (value === 'all') {
+    summaryFilters = {
+      mode: 'all',
+      windowMinutes: null,
+      from: null,
+      to: null,
+    };
+  } else {
+    const minutes = Number(value);
+    summaryFilters = {
+      mode: 'window',
+      windowMinutes: Number.isFinite(minutes) ? minutes : 1440,
+      from: null,
+      to: null,
+    };
+  }
+
+  refreshConsumptionSummary().catch(() => {});
+}
+
+async function handleSummaryApply() {
+  if (!elements.summaryFrom || !elements.summaryTo) return;
+
+  const fromIso = parseDateTimeLocal(elements.summaryFrom.value);
+  const toIso = parseDateTimeLocal(elements.summaryTo.value);
+
+  if (!fromIso && !toIso) {
+    setDashboardMessage('Veuillez sélectionner au moins une date pour la période personnalisée.', 'error');
+    return;
+  }
+
+  if (fromIso && toIso && new Date(fromIso) > new Date(toIso)) {
+    setDashboardMessage('La date de début doit précéder la date de fin.', 'error');
+    return;
+  }
+
+  summaryFilters = {
+    mode: 'custom',
+    windowMinutes: null,
+    from: fromIso,
+    to: toIso,
+  };
+
+  if (elements.summaryWindow) {
+    elements.summaryWindow.value = 'custom';
+  }
+
+  try {
+    await refreshConsumptionSummary();
+  } catch (err) {
+    // message already handled in refreshConsumptionSummary
+  }
+}
+
+async function handleHistoryApply() {
+  const fromIso = parseDateInput(elements.historyFrom?.value || '', { endOfDay: false });
+  const toIso = parseDateInput(elements.historyTo?.value || '', { endOfDay: true });
+
+  if (fromIso && toIso && new Date(fromIso) > new Date(toIso)) {
+    setDashboardMessage('La date de début doit précéder la date de fin.', 'error');
+    return;
+  }
+
+  historyFilters = { from: fromIso, to: toIso };
+  historyState.page = 1;
+  try {
+    await loadHistory({ page: 1 });
+  } catch (err) {
+    // message already handled
+  }
+}
+
+async function handleHistoryReset() {
+  historyFilters = { from: null, to: null };
+  if (elements.historyFrom) elements.historyFrom.value = '';
+  if (elements.historyTo) elements.historyTo.value = '';
+  historyState.page = 1;
+  try {
+    await loadHistory({ page: 1 });
+  } catch (err) {
+    // message already handled
+  }
+}
+
+async function handleHistoryPrev() {
+  if (historyState.page <= 1) return;
+  try {
+    await loadHistory({ page: historyState.page - 1 });
+  } catch (err) {
+    // handled elsewhere
+  }
+}
+
+async function handleHistoryNext() {
+  if (historyState.page >= historyState.totalPages) return;
+  try {
+    await loadHistory({ page: historyState.page + 1 });
+  } catch (err) {
+    // handled elsewhere
+  }
+}
+
 function setupListeners() {
   authButtonController.setOnClick(handleAuthSubmit);
   elements.toggleAuthMode.addEventListener('click', () => {
@@ -349,10 +813,44 @@ function setupListeners() {
     });
   }
 
+  if (elements.dashboardTabs) {
+    elements.dashboardTabs.addEventListener('click', (event) => {
+      const button = event.target.closest('.tab-button');
+      if (!button) return;
+      const tab = button.getAttribute('data-tab');
+      if (tab) {
+        setActiveTab(tab);
+      }
+    });
+  }
+
+  if (elements.summaryWindow) {
+    elements.summaryWindow.addEventListener('change', handleSummaryWindowChange);
+  }
+  if (elements.summaryApply) {
+    elements.summaryApply.addEventListener('click', handleSummaryApply);
+  }
+  if (elements.historyApply) {
+    elements.historyApply.addEventListener('click', handleHistoryApply);
+  }
+  if (elements.historyReset) {
+    elements.historyReset.addEventListener('click', handleHistoryReset);
+  }
+  if (elements.historyPrev) {
+    elements.historyPrev.addEventListener('click', handleHistoryPrev);
+  }
+  if (elements.historyNext) {
+    elements.historyNext.addEventListener('click', handleHistoryNext);
+  }
+
   browserApi.runtime.onMessage.addListener((message) => {
     if (message?.type === 'gptcarbon:estimation' && message.data) {
       lastEstimation = message.data;
       renderEstimation();
+      refreshConsumptionSummary({ silent: true }).catch(() => {});
+      if (currentTab === 'history' && historyState.page === 1) {
+        loadHistory({ page: 1 }).catch(() => {});
+      }
     }
   });
 }
@@ -391,6 +889,7 @@ function setupPasswordToggles() {
 
 async function init() {
   setAuthMode('login');
+  resetDashboardData();
   setupListeners();
   setupPasswordToggles();
   await hydrateEstimation();
