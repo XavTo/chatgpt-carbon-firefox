@@ -130,7 +130,7 @@ export class ConsumptionService {
 
     const baseQb = this.repository
       .createQueryBuilder('record')
-      .where('record.userId = :userId', { userId });
+      .where('record.user_id = :userId', { userId });
     this.applyWindow(baseQb, from, to);
 
     const raw = await baseQb
