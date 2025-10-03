@@ -88,6 +88,51 @@ async function request(apiBaseUrl, path, options = {}) {
   return data;
 }
 
+export async function authenticatedRequest(apiBaseUrl = API_BASE_URL, path, options = {}) {
+  const base = resolveBaseUrl(apiBaseUrl);
+  const state = await ensureValidAccessToken(base);
+
+  if (!state?.accessToken) {
+    throw new Error('Session expirée. Veuillez vous reconnecter.');
+  }
+
+  const headers = Object.assign({}, options.headers || {}, {
+    Authorization: `${state.tokenType || 'Bearer'} ${state.accessToken}`,
+  });
+
+  let body = options.body;
+  if (body != null && typeof body !== 'string' && !(body instanceof FormData)) {
+    body = JSON.stringify(body);
+    headers['Content-Type'] = 'application/json';
+  }
+
+  const fetchOptions = {
+    method: options.method || 'GET',
+    headers,
+  };
+
+  if (fetchOptions.method !== 'GET') {
+    fetchOptions.body = body;
+  }
+
+  const response = await fetch(`${base}${path}`, fetchOptions);
+  let data = null;
+  try {
+    data = await response.json();
+  } catch (err) {
+    // ignore json parse errors for empty body
+  }
+
+  if (!response.ok) {
+    const message = Array.isArray(data?.message)
+      ? data.message.join(' ')
+      : (data?.message || data?.error || 'Erreur inconnue');
+    throw new Error(message);
+  }
+
+  return data;
+}
+
 async function applyAuthResponse(apiBaseUrl, payload) {
   const base = resolveBaseUrl(apiBaseUrl);
   const state = mapAuthResponse(base, payload);

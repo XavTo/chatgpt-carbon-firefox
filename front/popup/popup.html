@@ -6,6 +6,8 @@
   <style>
     :root {
       color-scheme: light dark;
+      --popup-max-width: 360px;
+      --popup-max-height: 600px;
       --color-bg: #f5f5f7;
       --color-surface: #ffffff;
       --color-border: rgba(15, 23, 42, 0.08);
@@ -57,6 +59,14 @@
       }
     }
 
+    html,
+    body {
+      width: var(--popup-max-width);
+      max-width: var(--popup-max-width);
+      height: var(--popup-max-height);
+      max-height: var(--popup-max-height);
+    }
+
     body {
       margin: 0;
       min-width: 320px;
@@ -64,6 +74,9 @@
       color: var(--color-text);
       font: 13px/1.45 "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       transition: background 0.25s ease, color 0.25s ease;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
     }
 
     body[data-theme='light'] {
@@ -114,6 +127,11 @@
       --color-card-shadow: 0 26px 44px rgba(2, 6, 23, 0.55);
       --spinner-border: rgba(99, 102, 241, 0.35);
       --spinner-border-top: #a5b4fc;
+    }
+
+    .popup-content {
+      flex: 1;
+      overflow-y: auto;
     }
 
     main {
@@ -425,10 +443,191 @@
       color: var(--color-empty);
       font-style: italic;
     }
+
+    .tabs {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+      flex-wrap: wrap;
+    }
+
+    .tab-button {
+      border-radius: 999px;
+      border: 1px solid var(--color-border);
+      background: var(--color-surface);
+      color: inherit;
+      padding: 6px 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+    }
+
+    .tab-button.is-active {
+      background: linear-gradient(135deg, var(--color-primary-start), var(--color-primary-end));
+      color: #ffffff;
+      border-color: transparent;
+      box-shadow: 0 6px 16px var(--color-primary-shadow);
+    }
+
+    .tab-panel {
+      margin-top: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .summary-card {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding: 14px;
+      border-radius: 12px;
+      border: 1px solid var(--color-border);
+      background: rgba(99, 102, 241, 0.05);
+    }
+
+    .summary-controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .summary-controls label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--color-muted);
+    }
+
+    .summary-controls select,
+    .summary-controls input {
+      border-radius: 10px;
+      border: 1px solid var(--color-field-border);
+      background: var(--color-field-bg);
+      color: inherit;
+      padding: 6px 8px;
+      font: inherit;
+    }
+
+    .summary-controls button {
+      padding: 6px 12px;
+      font-size: 12px;
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 12px;
+    }
+
+    .stat-card {
+      border-radius: 12px;
+      border: 1px solid rgba(99, 102, 241, 0.25);
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      background: rgba(99, 102, 241, 0.08);
+    }
+
+    .stat-value {
+      font-size: 16px;
+      font-weight: 700;
+    }
+
+    .stat-label {
+      font-size: 11px;
+      color: var(--color-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .history-controls {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .history-controls-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .history-controls input,
+    .history-controls select {
+      border-radius: 10px;
+      border: 1px solid var(--color-field-border);
+      background: var(--color-field-bg);
+      padding: 6px 8px;
+      font: inherit;
+      color: inherit;
+    }
+
+    .history-controls button {
+      padding: 7px 14px;
+      font-size: 12px;
+      align-self: flex-start;
+    }
+
+    .history-table-wrapper {
+      border: 1px solid var(--color-border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    table.history-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+
+    .history-table thead {
+      background: rgba(99, 102, 241, 0.12);
+    }
+
+    .history-table th,
+    .history-table td {
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--color-border);
+      text-align: left;
+      word-break: break-word;
+      white-space: normal;
+    }
+
+    .history-table tbody tr:hover {
+      background: rgba(99, 102, 241, 0.08);
+    }
+
+    .history-empty {
+      text-align: center;
+      font-style: italic;
+      color: var(--color-empty);
+    }
+
+    .history-pagination {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .history-pagination button {
+      padding: 6px 12px;
+      font-size: 12px;
+    }
+
+    .history-page-info {
+      font-size: 12px;
+      color: var(--color-muted);
+      flex: 1;
+      text-align: center;
+    }
   </style>
 </head>
 <body>
-  <main>
+  <div class="popup-content">
+    <main>
     <header class="header">
       <div class="header-top">
         <h1>ChatGPT Carbon</h1>
@@ -474,11 +673,94 @@
         <button id="logoutButton" class="ghost" type="button">Se déconnecter</button>
       </div>
       <div class="message" id="dashboardMessage"></div>
-      <div id="estimation" class="estimation">
-        <p class="empty-state">Aucune estimation récente.</p>
+      <div class="tabs" id="dashboardTabs">
+        <button type="button" class="tab-button is-active" data-tab="overview">Vue d'ensemble</button>
+        <button type="button" class="tab-button" data-tab="history">Historique des requêtes</button>
+      </div>
+
+      <div id="overviewTab" class="tab-panel">
+        <section class="summary-card">
+          <div class="summary-controls">
+            <label for="summaryWindow">Fenêtre :</label>
+            <select id="summaryWindow">
+              <option value="24h">Dernières 24 h</option>
+              <option value="7d">7 derniers jours</option>
+              <option value="30d">30 derniers jours</option>
+              <option value="all">Depuis le début</option>
+              <option value="custom">Personnalisée…</option>
+            </select>
+            <input type="datetime-local" id="summaryFrom" class="hidden">
+            <input type="datetime-local" id="summaryTo" class="hidden">
+            <button type="button" class="ghost" id="summaryRefresh">Actualiser</button>
+          </div>
+          <div class="message" id="summaryMessage"></div>
+          <div class="summary-grid" id="summaryStats">
+            <div class="stat-card">
+              <span class="stat-value" id="summaryRequests">—</span>
+              <span class="stat-label">Requêtes</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-value" id="summaryEnergy">—</span>
+              <span class="stat-label">Énergie (Wh)</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-value" id="summaryEmissions">—</span>
+              <span class="stat-label">Émissions (kgCO₂)</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-value" id="summaryDuration">—</span>
+              <span class="stat-label">Durée (s)</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-value" id="summaryData">—</span>
+              <span class="stat-label">Données transférées</span>
+            </div>
+          </div>
+        </section>
+
+        <div id="estimation" class="estimation">
+          <p class="empty-state">Aucune estimation récente.</p>
+        </div>
+      </div>
+
+      <div id="historyTab" class="tab-panel hidden">
+        <form id="historyFilters" class="history-controls">
+          <div class="history-controls-row">
+            <input type="datetime-local" id="historyFrom" placeholder="Depuis">
+            <input type="datetime-local" id="historyTo" placeholder="Jusqu'au">
+            <input type="text" id="historySearch" placeholder="Rechercher une URL">
+          </div>
+          <div class="history-controls-row">
+            <button type="submit" class="primary">Filtrer</button>
+            <button type="button" class="ghost" id="historyReset">Réinitialiser</button>
+          </div>
+        </form>
+        <div class="message" id="historyMessage"></div>
+        <div class="history-table-wrapper">
+          <table class="history-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Durée (s)</th>
+                <th>Énergie (Wh)</th>
+                <th>Émissions (kgCO₂)</th>
+                <th>Données</th>
+                <th>Région</th>
+              </tr>
+            </thead>
+            <tbody id="historyTableBody"></tbody>
+          </table>
+        </div>
+        <div class="history-empty hidden" id="historyEmpty">Aucune requête enregistrée pour cette période.</div>
+        <div class="history-pagination">
+          <button type="button" class="ghost" id="historyPrev">Précédent</button>
+          <span class="history-page-info" id="historyPageInfo"></span>
+          <button type="button" class="ghost" id="historyNext">Suivant</button>
+        </div>
       </div>
     </section>
-  </main>
+    </main>
+  </div>
 
   <script src="vendor/react.production.min.js"></script>
   <script src="vendor/react-dom.production.min.js"></script>
