@@ -31,6 +31,7 @@ const elements = {
   logoutButton: document.getElementById('logoutButton'),
   estimation: document.getElementById('estimation'),
   estimationTimestamp: document.getElementById('estimationTimestamp'),
+  estimationLoader: document.getElementById('estimationLoader'),
   tabButtons: Array.from(document.querySelectorAll('.tab-button')),
   tabPanels: {
     overview: document.getElementById('tab-overview'),
@@ -43,7 +44,8 @@ const elements = {
   summaryRangeButtons: Array.from(document.querySelectorAll('[data-summary-range]')),
   summaryCustomRange: document.getElementById('summaryCustomRange'),
   summaryMetrics: document.getElementById('summaryMetrics'),
-  summaryUpdated: document.getElementById('summaryUpdated'),
+  summaryRefresh: document.getElementById('summaryRefresh'),
+  summaryLoader: document.getElementById('summaryLoader'),
   historyForm: document.getElementById('historyFilters'),
   historyFrom: document.getElementById('historyFrom'),
   historyTo: document.getElementById('historyTo'),
@@ -454,7 +456,7 @@ function renderSummary() {
     }
   });
 
-  if (elements.summaryUpdated) {
+  if (elements.summaryRefresh) {
     const parts = [];
     const fromText = summaryState.filters.from ? formatDateTimeDisplay(summaryState.filters.from) : null;
     const toText = summaryState.filters.to ? formatDateTimeDisplay(summaryState.filters.to) : null;
@@ -464,7 +466,9 @@ function renderSummary() {
     if (data?.updatedAt) {
       parts.push(`Mis à jour ${formatDateTimeDisplay(data.updatedAt)}`);
     }
-    elements.summaryUpdated.textContent = parts.join(' • ');
+    const tooltip = parts.join(' • ') || 'Aucune mise à jour';
+    elements.summaryRefresh.title = tooltip;
+    elements.summaryRefresh.setAttribute('aria-label', `Actualiser le résumé (${tooltip})`);
   }
 
   if (elements.summaryFrom) {
@@ -608,8 +612,19 @@ async function fetchConsumptionHistory(params = {}) {
 
 async function loadSummary({ silent = false } = {}) {
   if (!currentAuthState) return;
-  if (!silent && elements.summaryUpdated) {
-    elements.summaryUpdated.textContent = 'Chargement…';
+  if (!silent && elements.summaryRefresh) {
+    if (elements.summaryRefresh) {
+      elements.summaryRefresh.disabled = true;
+      elements.summaryRefresh.title = 'Chargement…';
+  // show loaders
+  if (elements.summaryLoader) {
+    elements.summaryLoader.classList.remove('hidden');
+  }
+  if (elements.summaryMetrics) {
+    const content = elements.summaryMetrics.closest('.card-content');
+    if (content) content.classList.add('hidden');
+  }
+    }
   }
 
   try {
@@ -620,10 +635,26 @@ async function loadSummary({ silent = false } = {}) {
       summaryState.filters.to = toDate(data.to) || summaryState.filters.to;
     }
   } catch (err) {
-    if (!silent && elements.summaryUpdated) {
-      elements.summaryUpdated.textContent = err?.message || 'Impossible de récupérer le résumé.';
+    if (!silent && elements.summaryRefresh) {
+    if (elements.summaryLoader) {
+      elements.summaryLoader.classList.add('hidden');
+    }
+    if (elements.summaryMetrics) {
+      const content = elements.summaryMetrics.closest('.card-content');
+      if (content) content.classList.remove('hidden');
+    }
+      elements.summaryRefresh.disabled = false;
+      elements.summaryRefresh.title = err?.message || 'Impossible de récupérer le résumé.';
     }
     return;
+  }
+  // hide loaders
+  if (elements.summaryLoader) {
+    elements.summaryLoader.classList.add('hidden');
+  }
+  if (elements.summaryMetrics) {
+    const content = elements.summaryMetrics.closest('.card-content');
+    if (content) content.classList.remove('hidden');
   }
 
   renderSummary();
@@ -915,6 +946,16 @@ async function hydrateEstimation() {
   }
 }
 
+function showEstimationLoader(show) {
+  if (elements.estimationLoader) {
+    elements.estimationLoader.classList.toggle('hidden', !show);
+  }
+  if (elements.estimation) {
+    const content = elements.estimation.closest('.card-content');
+    if (content) content.classList.toggle('hidden', show);
+  }
+}
+
 function setupListeners() {
   authButtonController.setOnClick(handleAuthSubmit);
   elements.toggleAuthMode.addEventListener('click', () => {
@@ -941,8 +982,8 @@ function setupListeners() {
       const from = parseDateTimeInput(elements.summaryFrom?.value || '');
       const to = parseDateTimeInput(elements.summaryTo?.value || '');
       if (from && to && from > to) {
-        if (elements.summaryUpdated) {
-          elements.summaryUpdated.textContent = 'La date de début doit précéder la date de fin.';
+        if (elements.summaryRefresh) {
+          elements.summaryRefresh.title = 'La date de début doit précéder la date de fin.';
         }
         return;
       }
@@ -973,6 +1014,12 @@ function setupListeners() {
   if (elements.summaryReset) {
     elements.summaryReset.addEventListener('click', async () => {
       await selectSummaryPreset(DEFAULT_SUMMARY_PRESET);
+    });
+  }
+
+  if (elements.summaryRefresh) {
+    elements.summaryRefresh.addEventListener('click', async () => {
+      await loadSummary({ silent: false });
     });
   }
 

@@ -59,12 +59,17 @@
 
     body {
       margin: 0;
-      min-width: 300px;
-      width: min(340px, 100vw);
+      min-width: 450px;
+      /* Increase base popup height so more content is visible by default */
+      min-height: 600px;
+      width: min(510px, 100vw);
       background: var(--color-bg);
       color: var(--color-text);
       font: 13px/1.45 "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       transition: background 0.25s ease, color 0.25s ease;
+      overflow-x: hidden;
+      /* allow vertical scrolling of the popup window if it exceeds available viewport */
+      overflow-y: auto;
     }
 
     body[data-theme='light'] {
@@ -120,6 +125,7 @@
     main {
       padding: 18px 16px 20px;
       display: flex;
+      align-items: center;
       flex-direction: column;
       gap: 16px;
     }
@@ -176,12 +182,14 @@
       display: flex;
       flex-direction: column;
       gap: 4px;
+      width: 90%;
     }
 
     .header-top {
       display: flex;
       justify-content: space-between;
       align-items: center;
+      width: 100%;
     }
 
     h1 {
@@ -210,6 +218,9 @@
       border: 1px solid var(--color-border);
       box-shadow: var(--color-card-shadow);
       backdrop-filter: blur(12px);
+      width: 100%;
+      max-width: 480px;
+      box-sizing: border-box;
     }
 
     .field {
@@ -319,6 +330,50 @@
       outline-offset: 2px;
     }
 
+    .icon-button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 30px;
+      height: 30px;
+      border-radius: 8px;
+      background: transparent;
+      border: 1px solid var(--color-border);
+      cursor: pointer;
+      padding: 4px;
+    }
+
+    .icon-button img {
+      display: block;
+      width: 16px;
+      height: 16px;
+    }
+
+    .loader {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 12px 0;
+    }
+
+    .loading-indicator {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      border: 3px solid var(--spinner-border);
+      border-top-color: var(--spinner-border-top);
+      animation: spin 0.8s linear infinite;
+    }
+
+    .card-content.hidden {
+      display: none !important;
+    }
+
+    /* In dark theme make svg icons visible by inverting/coloring */
+    body[data-theme='dark'] .icon-button img {
+      filter: invert(100%) brightness(120%);
+    }
+
     .loading-button {
       display: inline-flex;
       align-items: center;
@@ -389,12 +444,18 @@
       align-self: flex-start;
     }
 
-    .user-block {
+    /* footer row placed at the bottom of the dashboard card */
+    .footer-row {
       display: flex;
-      flex-direction: column;
-      gap: 2px;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-top: 6px;
+      position: relative;
+    }
+
+    .footer-row .logout-button {
       margin-left: auto;
-      text-align: right;
     }
 
     .user-label {
@@ -451,6 +512,9 @@
       display: flex;
       flex-direction: column;
       gap: 14px;
+      /* allow internal horizontal scrolling if content is wider than the card */
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
     }
 
     .tab-nav {
@@ -639,9 +703,30 @@
     .history-table-wrapper {
       border: 1px solid var(--color-border);
       border-radius: 12px;
-      overflow: hidden;
+      overflow: auto;
       max-height: 240px;
-      overflow-y: auto;
+      /* allow both axis scrolling inside the card */
+      -webkit-overflow-scrolling: touch;
+    }
+
+    /* make sure scrollbars appear inside the card and are more visible */
+    .tab-container::-webkit-scrollbar,
+    .history-table-wrapper::-webkit-scrollbar {
+      height: 10px;
+      width: 10px;
+    }
+
+    .tab-container::-webkit-scrollbar-thumb,
+    .history-table-wrapper::-webkit-scrollbar-thumb {
+      background: rgba(99,102,241,0.25);
+      border-radius: 10px;
+      border: 2px solid transparent;
+      background-clip: padding-box;
+    }
+
+    .tab-container::-webkit-scrollbar-track,
+    .history-table-wrapper::-webkit-scrollbar-track {
+      background: transparent;
     }
 
     .history-table {
@@ -696,6 +781,16 @@
     .history-table .metric-small {
       font-weight: 600;
     }
+    .authSection {
+      overflow-y: auto;
+    }
+
+    .dashboardSection, #dashboardSection {
+      overflow-y: auto;
+      max-height: calc(100vh - 110px);
+      -webkit-overflow-scrolling: touch;
+      padding-right: 6px; /* prevent content being hidden behind scrollbar */
+    }
   </style>
 </head>
 <body>
@@ -736,14 +831,6 @@
     </section>
 
     <section id="dashboardSection" class="card hidden">
-      <div class="top-row">
-        <button id="logoutButton" class="ghost logout-button" type="button">Se déconnecter</button>
-        <div class="user-block">
-          <span class="user-label">Connecté</span>
-          <span class="user-email" id="currentUserEmail"></span>
-          <span class="user-role" id="currentUserRole"></span>
-        </div>
-      </div>
       <div class="message" id="dashboardMessage"></div>
       <div class="tab-container">
         <div class="tab-nav" role="tablist">
@@ -754,7 +841,9 @@
           <section class="nested-card summary-card">
             <div class="summary-header">
               <h2>Consommation globale</h2>
-              <span class="summary-updated" id="summaryUpdated"></span>
+              <button type="button" id="summaryRefresh" class="icon-button" aria-label="Actualiser le résumé">
+                <img src="../images/refresh.svg" alt="" aria-hidden="true" width="16" height="16">
+              </button>
             </div>
             <form id="summaryFilters" class="summary-filters">
               <div class="summary-range-buttons" role="group" aria-label="Plages rapides">
@@ -763,6 +852,7 @@
                 <button type="button" class="range-button" data-summary-range="1m">1 mois</button>
                 <button type="button" class="range-button" data-summary-range="custom">Personnaliser</button>
               </div>
+              <div class="loader hidden" id="summaryLoader"><span class="loading-indicator" aria-hidden="true"></span></div>
               <div class="summary-custom-range hidden" id="summaryCustomRange">
                 <div class="field">
                   <label for="summaryFrom">De</label>
@@ -778,6 +868,7 @@
                 </div>
               </div>
             </form>
+            <div class="card-content">
             <div class="metrics-grid" id="summaryMetrics">
               <div class="metric-card">
                 <span class="metric-label">Requêtes</span>
@@ -804,14 +895,18 @@
                 <span class="metrics-subvalue">Wh</span>
               </div>
             </div>
+            </div>
           </section>
           <section class="nested-card estimation-card">
             <div class="summary-header">
               <h2>Dernière estimation</h2>
               <span class="summary-updated" id="estimationTimestamp"></span>
             </div>
+            <div class="loader hidden" id="estimationLoader"><span class="loading-indicator" aria-hidden="true"></span></div>
+            <div class="card-content">
             <div id="estimation" class="estimation">
               <p class="empty-state">Aucune estimation récente.</p>
+            </div>
             </div>
           </section>
         </div>
@@ -863,7 +958,9 @@
             <button type="button" id="historyNext" data-action="next">Suivant</button>
           </div>
         </div>
-      </div>
+          <div class="footer-row">
+            <button id="logoutButton" class="ghost logout-button" type="button">Se déconnecter</button>
+          </div>
     </section>
   </main>
 
