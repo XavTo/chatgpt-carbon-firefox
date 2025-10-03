@@ -40,6 +40,8 @@ const elements = {
   summaryFrom: document.getElementById('summaryFrom'),
   summaryTo: document.getElementById('summaryTo'),
   summaryReset: document.getElementById('summaryReset'),
+  summaryRangeButtons: Array.from(document.querySelectorAll('[data-summary-range]')),
+  summaryCustomRange: document.getElementById('summaryCustomRange'),
   summaryMetrics: document.getElementById('summaryMetrics'),
   summaryUpdated: document.getElementById('summaryUpdated'),
   historyForm: document.getElementById('historyFilters'),
@@ -77,9 +79,13 @@ let currentAuthState = null;
 
 const DEFAULT_HISTORY_PAGE_SIZE = 10;
 
+const DEFAULT_SUMMARY_PRESET = 'today';
+const SUMMARY_PRESETS = new Set(['today', '7d', '1m', 'custom']);
+
 const summaryState = {
-  filters: { from: null, to: null },
+  filters: computeSummaryPresetRange(DEFAULT_SUMMARY_PRESET),
   data: null,
+  rangePreset: DEFAULT_SUMMARY_PRESET,
 };
 
 const historyState = {
@@ -95,7 +101,8 @@ const historyState = {
 let consumptionRefreshTimeout = null;
 
 function resetConsumptionState() {
-  summaryState.filters = { from: null, to: null };
+  summaryState.rangePreset = DEFAULT_SUMMARY_PRESET;
+  summaryState.filters = computeSummaryPresetRange(DEFAULT_SUMMARY_PRESET);
   summaryState.data = null;
   historyState.filters = { from: null, to: null };
   historyState.page = 1;
@@ -182,6 +189,37 @@ function summarizeNumber(value, digits = 2) {
     minimumFractionDigits: digits,
     maximumFractionDigits: digits,
   });
+}
+
+function computeSummaryPresetRange(preset) {
+  const normalized = SUMMARY_PRESETS.has(preset) ? preset : DEFAULT_SUMMARY_PRESET;
+  const now = new Date();
+  const to = new Date(now);
+  const from = new Date(now);
+
+  const setStartOfDay = (date) => {
+    date.setHours(0, 0, 0, 0);
+  };
+
+  switch (normalized) {
+    case '7d': {
+      setStartOfDay(from);
+      from.setDate(from.getDate() - 6);
+      break;
+    }
+    case '1m': {
+      setStartOfDay(from);
+      from.setMonth(from.getMonth() - 1);
+      break;
+    }
+    case 'today':
+    default: {
+      setStartOfDay(from);
+      break;
+    }
+  }
+
+  return { from, to };
 }
 
 function scheduleConsumptionRefresh(delay = 1200) {
@@ -377,6 +415,24 @@ async function authorizedFetch(path, options = {}) {
 function renderSummary() {
   if (!elements.summaryMetrics) return;
 
+  const isCustomRange = summaryState.rangePreset === 'custom';
+  if (Array.isArray(elements.summaryRangeButtons)) {
+    elements.summaryRangeButtons.forEach((button) => {
+      const preset = button?.dataset?.summaryRange;
+      const isActive = preset === summaryState.rangePreset;
+      button.classList.toggle('active', Boolean(isActive));
+      if (isActive) {
+        button.setAttribute('aria-pressed', 'true');
+      } else {
+        button.setAttribute('aria-pressed', 'false');
+      }
+    });
+  }
+
+  if (elements.summaryCustomRange) {
+    elements.summaryCustomRange.classList.toggle('hidden', !isCustomRange);
+  }
+
   const data = summaryState.data;
   const metrics = {
     totalRequests: data?.totalRequests ?? null,
@@ -412,10 +468,31 @@ function renderSummary() {
   }
 
   if (elements.summaryFrom) {
-    elements.summaryFrom.value = toLocalInputValue(summaryState.filters.from);
+    elements.summaryFrom.value = isCustomRange
+      ? toLocalInputValue(summaryState.filters.from)
+      : '';
   }
   if (elements.summaryTo) {
-    elements.summaryTo.value = toLocalInputValue(summaryState.filters.to);
+    elements.summaryTo.value = isCustomRange
+      ? toLocalInputValue(summaryState.filters.to)
+      : '';
+  }
+}
+
+async function selectSummaryPreset(preset, { fetch = true } = {}) {
+  const normalized = SUMMARY_PRESETS.has(preset) ? preset : DEFAULT_SUMMARY_PRESET;
+  summaryState.rangePreset = normalized;
+
+  if (normalized === 'custom') {
+    renderSummary();
+    return;
+  }
+
+  summaryState.filters = computeSummaryPresetRange(normalized);
+  renderSummary();
+
+  if (fetch) {
+    await loadSummary();
   }
 }
 
@@ -538,7 +615,7 @@ async function loadSummary({ silent = false } = {}) {
   try {
     const data = await fetchConsumptionSummary(summaryState.filters);
     summaryState.data = data || null;
-    if (data?.from || data?.to) {
+    if (summaryState.rangePreset === 'custom' && (data?.from || data?.to)) {
       summaryState.filters.from = toDate(data.from) || summaryState.filters.from;
       summaryState.filters.to = toDate(data.to) || summaryState.filters.to;
     }
@@ -611,7 +688,7 @@ function handleRealtimeConsumptionUpdate(payload) {
 
   const summaryMatchesWindow = (() => {
     const from = summaryState.filters.from;
-    const to = summaryState.filters.to;
+    const to = summaryState.rangePreset === 'custom' ? summaryState.filters.to : null;
     if (from && timestamp < from) return false;
     if (to && timestamp > to) return false;
     return true;
@@ -869,17 +946,33 @@ function setupListeners() {
         }
         return;
       }
+      summaryState.rangePreset = 'custom';
       summaryState.filters = { from, to };
+      renderSummary();
       await loadSummary();
+    });
+  }
+
+  if (Array.isArray(elements.summaryRangeButtons)) {
+    elements.summaryRangeButtons.forEach((button) => {
+      button.addEventListener('click', async () => {
+        const preset = button?.dataset?.summaryRange;
+        if (!preset) return;
+        if (preset === 'custom') {
+          await selectSummaryPreset('custom', { fetch: false });
+          if (elements.summaryFrom) {
+            elements.summaryFrom.focus();
+          }
+          return;
+        }
+        await selectSummaryPreset(preset);
+      });
     });
   }
 
   if (elements.summaryReset) {
     elements.summaryReset.addEventListener('click', async () => {
-      summaryState.filters = { from: null, to: null };
-      if (elements.summaryFrom) elements.summaryFrom.value = '';
-      if (elements.summaryTo) elements.summaryTo.value = '';
-      await loadSummary();
+      await selectSummaryPreset(DEFAULT_SUMMARY_PRESET);
     });
   }
 
@@ -980,6 +1073,8 @@ function setupPasswordToggles() {
 
 async function init() {
   setAuthMode('login');
+  renderSummary();
+  renderHistory();
   setupListeners();
   setupPasswordToggles();
   await hydrateEstimation();
