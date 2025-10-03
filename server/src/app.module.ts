@@ -6,6 +6,7 @@ import configuration from './config/configuration';
 import { HealthController } from './health.controller';
 import { LoggingModule } from './logging/logging.module';
 import { AuthModule } from './auth/auth.module';
+import { ConsumptionModule } from './consumption/consumption.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { AuthModule } from './auth/auth.module';
       }),
     }),
     LoggingModule,
+    ConsumptionModule,
     AuthModule,
   ],
   controllers: [HealthController],

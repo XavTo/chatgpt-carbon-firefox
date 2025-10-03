@@ -1,8 +1,10 @@
-import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query, Req, UnauthorizedException, UseGuards } from '@nestjs/common';
+import { Request } from 'express';
 
 import { CreateLogEventDto } from './dto/create-log-event.dto';
 import { LoggingService } from './logging.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { JwtPayload } from '../auth/jwt-payload.interface';
 
 @Controller('events')
 export class LoggingController {
@@ -10,8 +12,15 @@ export class LoggingController {
 
   @UseGuards(JwtAuthGuard)
   @Post()
-  async create(@Body() dto: CreateLogEventDto) {
-    const created = await this.loggingService.create(dto);
+  async create(
+    @Body() dto: CreateLogEventDto,
+    @Req() req: Request & { user?: JwtPayload },
+  ) {
+    if (!req.user) {
+      throw new UnauthorizedException('Utilisateur non authentifié');
+    }
+
+    const created = await this.loggingService.create(dto, req.user);
     return { id: created.id, createdAt: created.createdAt };
   }
 

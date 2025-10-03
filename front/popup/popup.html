@@ -223,7 +223,8 @@
       color: var(--color-subtle);
     }
 
-    .field input {
+    .field input,
+    .field select {
       border-radius: 10px;
       border: 1px solid var(--color-field-border);
       padding: 8px 10px;
@@ -233,7 +234,8 @@
       transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
     }
 
-    .field input:focus {
+    .field input:focus,
+    .field select:focus {
       outline: none;
       border-color: var(--color-field-focus-border);
       box-shadow: 0 0 0 3px var(--color-field-focus-ring);
@@ -425,6 +427,216 @@
       color: var(--color-empty);
       font-style: italic;
     }
+
+    .muted {
+      color: var(--color-muted);
+      font-size: 11px;
+    }
+
+    .user-role {
+      font-size: 11px;
+      color: var(--color-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .tab-container {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .tab-nav {
+      display: flex;
+      gap: 8px;
+      border-bottom: 1px solid var(--color-border);
+      padding-bottom: 6px;
+    }
+
+    .tab-button {
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: 999px;
+      padding: 7px 14px;
+      font-weight: 600;
+      font-size: 12px;
+      color: var(--color-muted);
+      cursor: pointer;
+      transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+    }
+
+    .tab-button:hover {
+      color: var(--color-text);
+      border-color: rgba(99, 102, 241, 0.25);
+      background: rgba(99, 102, 241, 0.08);
+    }
+
+    .tab-button.active {
+      color: var(--color-text);
+      border-color: rgba(99, 102, 241, 0.45);
+      background: rgba(99, 102, 241, 0.14);
+    }
+
+    .tab-button:focus-visible {
+      outline: 3px solid rgba(99, 102, 241, 0.35);
+      outline-offset: 2px;
+    }
+
+    .tab-panel {
+      display: none;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .tab-panel.active {
+      display: flex;
+    }
+
+    .nested-card {
+      border: 1px solid var(--color-border);
+      border-radius: 12px;
+      padding: 14px;
+      background: var(--color-surface);
+      box-shadow: var(--color-card-shadow);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .summary-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 8px;
+    }
+
+    .summary-header h2 {
+      font-size: 14px;
+      font-weight: 700;
+      margin: 0;
+    }
+
+    .summary-updated {
+      font-size: 11px;
+      color: var(--color-muted);
+    }
+
+    .filters-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: flex-end;
+    }
+
+    .filters-row .field {
+      flex: 1 1 150px;
+      min-width: 140px;
+    }
+
+    .filters-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 12px;
+    }
+
+    .metric-card {
+      background: linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(99, 102, 241, 0.08));
+      border-radius: 12px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      border: 1px solid rgba(99, 102, 241, 0.25);
+    }
+
+    .metric-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--color-muted);
+    }
+
+    .metric-value {
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    .metrics-subvalue {
+      font-size: 11px;
+      color: var(--color-muted);
+    }
+
+    .history-status {
+      min-height: 16px;
+      font-size: 12px;
+      color: var(--color-muted);
+    }
+
+    .history-table-wrapper {
+      border: 1px solid var(--color-border);
+      border-radius: 12px;
+      overflow: hidden;
+      max-height: 240px;
+      overflow-y: auto;
+    }
+
+    .history-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .history-table th,
+    .history-table td {
+      padding: 8px 12px;
+      font-size: 12px;
+      border-bottom: 1px solid var(--color-border);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    .history-table th {
+      font-weight: 600;
+      color: var(--color-muted);
+      background: rgba(99, 102, 241, 0.08);
+    }
+
+    .history-table tbody tr:last-child td {
+      border-bottom: none;
+    }
+
+    .history-table tbody tr:hover {
+      background: rgba(99, 102, 241, 0.1);
+    }
+
+    .pagination {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      font-size: 12px;
+    }
+
+    .pagination button {
+      padding: 6px 12px;
+      border-radius: 999px;
+      border: 1px solid var(--color-border);
+      background: transparent;
+      font-weight: 600;
+    }
+
+    .pagination button:hover:not(:disabled) {
+      background: rgba(99, 102, 241, 0.12);
+      border-color: rgba(99, 102, 241, 0.4);
+    }
+
+    .history-table .metric-small {
+      font-weight: 600;
+    }
   </style>
 </head>
 <body>
@@ -469,13 +681,122 @@
         <div class="user-block">
           <span class="user-label">Connecté</span>
           <span class="user-email" id="currentUserEmail"></span>
+          <span class="user-role" id="currentUserRole"></span>
           <span class="server-hint">Serveur : <span id="serverUrl"></span></span>
         </div>
         <button id="logoutButton" class="ghost" type="button">Se déconnecter</button>
       </div>
       <div class="message" id="dashboardMessage"></div>
-      <div id="estimation" class="estimation">
-        <p class="empty-state">Aucune estimation récente.</p>
+      <div class="tab-container">
+        <div class="tab-nav" role="tablist">
+          <button type="button" class="tab-button active" id="tabBtnOverview" data-tab="overview" role="tab" aria-selected="true" aria-controls="tab-overview">Vue d'ensemble</button>
+          <button type="button" class="tab-button" id="tabBtnHistory" data-tab="history" role="tab" aria-selected="false" aria-controls="tab-history">Historique</button>
+        </div>
+        <div id="tab-overview" class="tab-panel active" role="tabpanel" aria-labelledby="tabBtnOverview">
+          <section class="nested-card summary-card">
+            <div class="summary-header">
+              <h2>Consommation globale</h2>
+              <span class="summary-updated" id="summaryUpdated"></span>
+            </div>
+            <form id="summaryFilters" class="filters-row">
+              <div class="field">
+                <label for="summaryFrom">De</label>
+                <input type="datetime-local" id="summaryFrom" name="from">
+              </div>
+              <div class="field">
+                <label for="summaryTo">À</label>
+                <input type="datetime-local" id="summaryTo" name="to">
+              </div>
+              <div class="filters-actions">
+                <button type="submit" class="ghost">Mettre à jour</button>
+                <button type="button" class="ghost" id="summaryReset">Réinitialiser</button>
+              </div>
+            </form>
+            <div class="metrics-grid" id="summaryMetrics">
+              <div class="metric-card">
+                <span class="metric-label">Requêtes</span>
+                <span class="metric-value" data-metric="totalRequests">—</span>
+              </div>
+              <div class="metric-card">
+                <span class="metric-label">Énergie totale</span>
+                <span class="metric-value" data-metric="totalWh">—</span>
+                <span class="metrics-subvalue">Wh</span>
+              </div>
+              <div class="metric-card">
+                <span class="metric-label">CO₂</span>
+                <span class="metric-value" data-metric="totalKgCO2">—</span>
+                <span class="metrics-subvalue">kg</span>
+              </div>
+              <div class="metric-card">
+                <span class="metric-label">Calcul</span>
+                <span class="metric-value" data-metric="totalComputeWh">—</span>
+                <span class="metrics-subvalue">Wh</span>
+              </div>
+              <div class="metric-card">
+                <span class="metric-label">Réseau</span>
+                <span class="metric-value" data-metric="totalNetworkWh">—</span>
+                <span class="metrics-subvalue">Wh</span>
+              </div>
+            </div>
+          </section>
+          <section class="nested-card estimation-card">
+            <div class="summary-header">
+              <h2>Dernière estimation</h2>
+              <span class="summary-updated" id="estimationTimestamp"></span>
+            </div>
+            <div id="estimation" class="estimation">
+              <p class="empty-state">Aucune estimation récente.</p>
+            </div>
+          </section>
+        </div>
+        <div id="tab-history" class="tab-panel" role="tabpanel" aria-labelledby="tabBtnHistory">
+          <form id="historyFilters" class="filters-row">
+            <div class="field">
+              <label for="historyFrom">De</label>
+              <input type="datetime-local" id="historyFrom" name="from">
+            </div>
+            <div class="field">
+              <label for="historyTo">À</label>
+              <input type="datetime-local" id="historyTo" name="to">
+            </div>
+            <div class="field">
+              <label for="historyPageSize">Par page</label>
+              <select id="historyPageSize" name="pageSize">
+                <option value="5">5</option>
+                <option value="10" selected>10</option>
+                <option value="20">20</option>
+              </select>
+            </div>
+            <div class="filters-actions">
+              <button type="submit" class="ghost">Filtrer</button>
+              <button type="button" class="ghost" id="historyReset">Réinitialiser</button>
+            </div>
+          </form>
+          <div class="history-status" id="historyStatus"></div>
+          <div class="history-table-wrapper">
+            <table class="history-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Durée</th>
+                  <th>Énergie (Wh)</th>
+                  <th>CO₂ (kg)</th>
+                  <th>Réseau</th>
+                </tr>
+              </thead>
+              <tbody id="historyTableBody">
+                <tr>
+                  <td colspan="5" class="empty-state">Aucune donnée.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="pagination" id="historyPagination">
+            <button type="button" id="historyPrev" data-action="prev">Précédent</button>
+            <span id="historyPaginationInfo" class="muted"></span>
+            <button type="button" id="historyNext" data-action="next">Suivant</button>
+          </div>
+        </div>
       </div>
     </section>
   </main>

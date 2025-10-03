@@ -265,6 +265,10 @@ browserApi.webRequest.onCompleted.addListener(
       kgPerKWh
     };
 
+    const eventTimestamp = new Date().toISOString();
+    payload.timestamp = eventTimestamp;
+    payload.requestId = details.requestId;
+
     if (details.tabId >= 0) {
       try {
         browserApi.tabs.sendMessage(details.tabId, { type: "gptcarbon:estimation", data: payload });

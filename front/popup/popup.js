@@ -26,9 +26,32 @@ const elements = {
   dashboardSection: document.getElementById('dashboardSection'),
   dashboardMessage: document.getElementById('dashboardMessage'),
   currentUserEmail: document.getElementById('currentUserEmail'),
+  currentUserRole: document.getElementById('currentUserRole'),
   serverUrl: document.getElementById('serverUrl'),
   logoutButton: document.getElementById('logoutButton'),
   estimation: document.getElementById('estimation'),
+  estimationTimestamp: document.getElementById('estimationTimestamp'),
+  tabButtons: Array.from(document.querySelectorAll('.tab-button')),
+  tabPanels: {
+    overview: document.getElementById('tab-overview'),
+    history: document.getElementById('tab-history'),
+  },
+  summaryForm: document.getElementById('summaryFilters'),
+  summaryFrom: document.getElementById('summaryFrom'),
+  summaryTo: document.getElementById('summaryTo'),
+  summaryReset: document.getElementById('summaryReset'),
+  summaryMetrics: document.getElementById('summaryMetrics'),
+  summaryUpdated: document.getElementById('summaryUpdated'),
+  historyForm: document.getElementById('historyFilters'),
+  historyFrom: document.getElementById('historyFrom'),
+  historyTo: document.getElementById('historyTo'),
+  historyPageSize: document.getElementById('historyPageSize'),
+  historyReset: document.getElementById('historyReset'),
+  historyStatus: document.getElementById('historyStatus'),
+  historyTableBody: document.getElementById('historyTableBody'),
+  historyPrev: document.getElementById('historyPrev'),
+  historyNext: document.getElementById('historyNext'),
+  historyPaginationInfo: document.getElementById('historyPaginationInfo'),
 };
 
 const THEME_STORAGE_KEY = 'gptcarbon:themePreference';
@@ -50,6 +73,40 @@ if (elements.serverUrl) {
 
 let authMode = 'login';
 let lastEstimation = null;
+let currentAuthState = null;
+
+const DEFAULT_HISTORY_PAGE_SIZE = 10;
+
+const summaryState = {
+  filters: { from: null, to: null },
+  data: null,
+};
+
+const historyState = {
+  filters: { from: null, to: null },
+  page: 1,
+  pageSize: DEFAULT_HISTORY_PAGE_SIZE,
+  total: 0,
+  totalPages: 0,
+  items: [],
+  loading: false,
+};
+
+let consumptionRefreshTimeout = null;
+
+function resetConsumptionState() {
+  summaryState.filters = { from: null, to: null };
+  summaryState.data = null;
+  historyState.filters = { from: null, to: null };
+  historyState.page = 1;
+  historyState.pageSize = DEFAULT_HISTORY_PAGE_SIZE;
+  historyState.total = 0;
+  historyState.totalPages = 0;
+  historyState.items = [];
+  historyState.loading = false;
+  renderSummary();
+  renderHistory();
+}
 
 let themePreference = loadThemePreference();
 setThemePreference(themePreference, { persist: false });
@@ -68,6 +125,75 @@ function fmtBytes(bytes) {
     i += 1;
   }
   return `${v.toFixed(i === 0 ? 0 : 2)} ${units[i]}`;
+}
+
+function toDate(value) {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function formatDateTimeDisplay(value) {
+  const date = toDate(value);
+  if (!date) return '—';
+  try {
+    return date.toLocaleString('fr-FR', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  } catch (_) {
+    return date.toISOString();
+  }
+}
+
+function toLocalInputValue(date) {
+  const d = toDate(date);
+  if (!d) return '';
+  const pad = (n) => String(n).padStart(2, '0');
+  const year = d.getFullYear();
+  const month = pad(d.getMonth() + 1);
+  const day = pad(d.getDate());
+  const hours = pad(d.getHours());
+  const minutes = pad(d.getMinutes());
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
+function parseDateTimeInput(value) {
+  if (!value) return null;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function describeRole(role) {
+  if (role === 'admin') {
+    return 'Rôle : Administrateur';
+  }
+  return 'Rôle : Utilisateur';
+}
+
+function summarizeNumber(value, digits = 2) {
+  if (value == null) return '—';
+  const num = Number(value);
+  if (!Number.isFinite(num)) return '—';
+  return num.toLocaleString('fr-FR', {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  });
+}
+
+function scheduleConsumptionRefresh(delay = 1200) {
+  if (consumptionRefreshTimeout) {
+    clearTimeout(consumptionRefreshTimeout);
+  }
+  consumptionRefreshTimeout = setTimeout(() => {
+    consumptionRefreshTimeout = null;
+    if (!currentAuthState) return;
+    loadSummary({ silent: true }).catch(() => {});
+    loadHistory({ silent: true }).catch(() => {});
+  }, delay);
 }
 
 function setAuthMessage(text, variant) {
@@ -186,6 +312,9 @@ function renderEstimation() {
   if (!elements.estimation) return;
   if (!lastEstimation) {
     elements.estimation.innerHTML = '<p class="empty-state">Aucune estimation récente.</p>';
+    if (elements.estimationTimestamp) {
+      elements.estimationTimestamp.textContent = '';
+    }
     return;
   }
 
@@ -198,12 +327,370 @@ function renderEstimation() {
     <div class="estimation-row"><strong>Total</strong><strong>${fmt(d.totalWh)} Wh</strong></div>
     <div class="estimation-row"><strong>Émissions</strong><strong>${fmt(d.kgCO2, 4)} kgCO₂</strong></div>
   `;
+  if (elements.estimationTimestamp) {
+    const ts = d.timestamp ? formatDateTimeDisplay(d.timestamp) : '';
+    elements.estimationTimestamp.textContent = ts ? `Mesuré le ${ts}` : '';
+  }
+}
+
+async function authorizedFetch(path, options = {}) {
+  const state = await ensureValidAccessToken(API_BASE_URL);
+  if (!state || !state.accessToken) {
+    throw new Error('Session expirée. Veuillez vous reconnecter.');
+  }
+
+  currentAuthState = state;
+
+  const headers = Object.assign({}, options.headers || {});
+  if (options.body && !headers['Content-Type']) {
+    headers['Content-Type'] = 'application/json';
+  }
+  headers.Authorization = `${state.tokenType || 'Bearer'} ${state.accessToken}`;
+
+  const response = await fetch(`${state.apiBaseUrl || API_BASE_URL}${path}`, {
+    method: options.method || 'GET',
+    headers,
+    body: options.body ? JSON.stringify(options.body) : undefined,
+  });
+
+  if (response.status === 204) {
+    return null;
+  }
+
+  let data = null;
+  try {
+    data = await response.json();
+  } catch (_) {
+    // ignore JSON parsing errors for empty bodies
+  }
+
+  if (!response.ok) {
+    const message = Array.isArray(data?.message)
+      ? data.message.join(' ')
+      : (data?.message || data?.error || response.statusText || 'Erreur serveur.');
+    throw new Error(message);
+  }
+
+  return data;
+}
+
+function renderSummary() {
+  if (!elements.summaryMetrics) return;
+
+  const data = summaryState.data;
+  const metrics = {
+    totalRequests: data?.totalRequests ?? null,
+    totalWh: data?.totalWh ?? null,
+    totalKgCO2: data?.totalKgCO2 ?? null,
+    totalComputeWh: data?.totalComputeWh ?? null,
+    totalNetworkWh: data?.totalNetworkWh ?? null,
+  };
+
+  Object.entries(metrics).forEach(([key, value]) => {
+    const el = elements.summaryMetrics.querySelector(`[data-metric="${key}"]`);
+    if (!el) return;
+    if (key === 'totalRequests') {
+      el.textContent = value == null ? '—' : Number(value).toLocaleString('fr-FR');
+    } else if (key === 'totalKgCO2') {
+      el.textContent = summarizeNumber(value, 4);
+    } else {
+      el.textContent = summarizeNumber(value, 2);
+    }
+  });
+
+  if (elements.summaryUpdated) {
+    const parts = [];
+    const fromText = summaryState.filters.from ? formatDateTimeDisplay(summaryState.filters.from) : null;
+    const toText = summaryState.filters.to ? formatDateTimeDisplay(summaryState.filters.to) : null;
+    if (fromText || toText) {
+      parts.push(`Fenêtre ${fromText || '—'} → ${toText || '—'}`);
+    }
+    if (data?.updatedAt) {
+      parts.push(`Mis à jour ${formatDateTimeDisplay(data.updatedAt)}`);
+    }
+    elements.summaryUpdated.textContent = parts.join(' • ');
+  }
+
+  if (elements.summaryFrom) {
+    elements.summaryFrom.value = toLocalInputValue(summaryState.filters.from);
+  }
+  if (elements.summaryTo) {
+    elements.summaryTo.value = toLocalInputValue(summaryState.filters.to);
+  }
+}
+
+function renderHistory() {
+  if (!elements.historyTableBody) return;
+
+  elements.historyPageSize.value = String(historyState.pageSize);
+  if (elements.historyFrom) {
+    elements.historyFrom.value = toLocalInputValue(historyState.filters.from);
+  }
+  if (elements.historyTo) {
+    elements.historyTo.value = toLocalInputValue(historyState.filters.to);
+  }
+
+  const rows = Array.isArray(historyState.items) ? historyState.items : [];
+  if (!rows.length) {
+    elements.historyTableBody.innerHTML = '<tr><td colspan="5" class="empty-state">Aucune donnée.</td></tr>';
+  } else {
+    elements.historyTableBody.innerHTML = rows
+      .map((record) => {
+        const dateText = formatDateTimeDisplay(record.eventTimestamp || record.createdAt);
+        const durationText = record.durationSec != null ? `${fmt(record.durationSec, 1)} s` : '—';
+        const totalWh = record.totalWh != null ? summarizeNumber(Number(record.totalWh), 3) : '—';
+        const computeWh = record.computeWh != null ? summarizeNumber(Number(record.computeWh), 3) : '—';
+        const networkWhValue = record.networkWh != null ? Number(record.networkWh) : null;
+        const networkWh = networkWhValue != null ? summarizeNumber(networkWhValue, 3) : '—';
+        const kgCO2 = record.kgCO2 != null ? summarizeNumber(Number(record.kgCO2), 4) : '—';
+        const bytesValue = record.totalBytes != null ? Number(record.totalBytes) : null;
+        const bytesText = bytesValue != null && Number.isFinite(bytesValue) ? fmtBytes(bytesValue) : '—';
+
+        return `
+          <tr>
+            <td>${dateText}</td>
+            <td>${durationText}</td>
+            <td>
+              <div class="metric-small">${totalWh} Wh</div>
+              <div class="muted">Calcul : ${computeWh} Wh</div>
+            </td>
+            <td>${kgCO2}</td>
+            <td>
+              <div class="metric-small">${networkWh} Wh</div>
+              <div class="muted">${bytesText}</div>
+            </td>
+          </tr>
+        `;
+      })
+      .join('');
+  }
+
+  if (elements.historyPaginationInfo) {
+    if (historyState.totalPages <= 1) {
+      elements.historyPaginationInfo.textContent = historyState.total
+        ? `${historyState.total} requêtes`
+        : '';
+    } else {
+      elements.historyPaginationInfo.textContent = `Page ${historyState.page} sur ${historyState.totalPages}`;
+    }
+  }
+
+  if (elements.historyPrev) {
+    elements.historyPrev.disabled = historyState.page <= 1;
+  }
+  if (elements.historyNext) {
+    elements.historyNext.disabled = historyState.totalPages === 0 || historyState.page >= historyState.totalPages;
+  }
+}
+
+function setActiveTab(tab) {
+  const normalized = tab === 'history' ? 'history' : 'overview';
+  elements.tabButtons.forEach((btn) => {
+    const isActive = btn.dataset.tab === normalized;
+    btn.classList.toggle('active', isActive);
+    btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
+  });
+
+  Object.entries(elements.tabPanels).forEach(([name, panel]) => {
+    if (!panel) return;
+    panel.classList.toggle('active', name === normalized);
+  });
+}
+
+function buildQueryString(params) {
+  const search = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value == null) return;
+    if (value instanceof Date) {
+      search.set(key, value.toISOString());
+    } else {
+      search.set(key, String(value));
+    }
+  });
+  const query = search.toString();
+  return query ? `?${query}` : '';
+}
+
+async function fetchConsumptionSummary(filters = {}) {
+  const query = buildQueryString({
+    from: filters.from,
+    to: filters.to,
+  });
+  return authorizedFetch(`/consumption/summary${query}`);
+}
+
+async function fetchConsumptionHistory(params = {}) {
+  const query = buildQueryString({
+    page: params.page,
+    pageSize: params.pageSize,
+    from: params.from,
+    to: params.to,
+  });
+  return authorizedFetch(`/consumption/history${query}`);
+}
+
+async function loadSummary({ silent = false } = {}) {
+  if (!currentAuthState) return;
+  if (!silent && elements.summaryUpdated) {
+    elements.summaryUpdated.textContent = 'Chargement…';
+  }
+
+  try {
+    const data = await fetchConsumptionSummary(summaryState.filters);
+    summaryState.data = data || null;
+    if (data?.from || data?.to) {
+      summaryState.filters.from = toDate(data.from) || summaryState.filters.from;
+      summaryState.filters.to = toDate(data.to) || summaryState.filters.to;
+    }
+  } catch (err) {
+    if (!silent && elements.summaryUpdated) {
+      elements.summaryUpdated.textContent = err?.message || 'Impossible de récupérer le résumé.';
+    }
+    return;
+  }
+
+  renderSummary();
+}
+
+async function loadHistory({ page, pageSize, silent = false } = {}) {
+  if (!currentAuthState) return;
+  if (Number.isFinite(pageSize)) {
+    historyState.pageSize = Math.min(100, Math.max(1, Math.trunc(pageSize)));
+  }
+  if (Number.isFinite(page)) {
+    historyState.page = Math.max(1, Math.trunc(page));
+  }
+
+  if (!silent && elements.historyStatus) {
+    elements.historyStatus.textContent = 'Chargement…';
+  }
+
+  historyState.loading = true;
+  try {
+    const data = await fetchConsumptionHistory({
+      page: historyState.page,
+      pageSize: historyState.pageSize,
+      from: historyState.filters.from,
+      to: historyState.filters.to,
+    });
+
+    historyState.items = Array.isArray(data?.items) ? data.items : [];
+    const total = Number(data?.total);
+    const page = Number(data?.page);
+    const pageSize = Number(data?.pageSize);
+    const totalPages = Number(data?.totalPages);
+
+    historyState.total = Number.isFinite(total) ? total : historyState.items.length;
+    historyState.page = Number.isFinite(page) ? page : historyState.page;
+    historyState.pageSize = Number.isFinite(pageSize)
+      ? pageSize
+      : historyState.pageSize;
+    historyState.totalPages = Number.isFinite(totalPages)
+      ? totalPages
+      : (historyState.pageSize > 0 ? Math.ceil(historyState.total / historyState.pageSize) : 0);
+
+    if (!silent && elements.historyStatus) {
+      elements.historyStatus.textContent = historyState.total
+        ? `${historyState.total} requêtes enregistrées.`
+        : 'Aucune requête pour cette période.';
+    }
+  } catch (err) {
+    if (!silent && elements.historyStatus) {
+      elements.historyStatus.textContent = err?.message || 'Impossible de récupérer l’historique.';
+    }
+  } finally {
+    historyState.loading = false;
+  }
+
+  renderHistory();
+}
+
+function handleRealtimeConsumptionUpdate(payload) {
+  if (!payload || !currentAuthState) return;
+  const timestamp = toDate(payload.timestamp) || new Date();
+
+  const summaryMatchesWindow = (() => {
+    const from = summaryState.filters.from;
+    const to = summaryState.filters.to;
+    if (from && timestamp < from) return false;
+    if (to && timestamp > to) return false;
+    return true;
+  })();
+
+  if (summaryState.data && summaryMatchesWindow) {
+    summaryState.data.totalRequests = (summaryState.data.totalRequests ?? 0) + 1;
+    summaryState.data.totalComputeWh = (summaryState.data.totalComputeWh ?? 0) + (payload.computeWh ?? 0);
+    summaryState.data.totalNetworkWh = (summaryState.data.totalNetworkWh ?? 0) + (payload.networkWh ?? 0);
+    summaryState.data.totalWh = (summaryState.data.totalWh ?? 0) + (payload.totalWh ?? 0);
+    summaryState.data.totalKgCO2 = (summaryState.data.totalKgCO2 ?? 0) + (payload.kgCO2 ?? 0);
+    summaryState.data.lastRecordAt = timestamp.toISOString();
+    summaryState.data.updatedAt = new Date().toISOString();
+    renderSummary();
+  }
+
+  if (historyState.page === 1) {
+    const historyMatchesWindow = (() => {
+      const from = historyState.filters.from;
+      const to = historyState.filters.to;
+      if (from && timestamp < from) return false;
+      if (to && timestamp > to) return false;
+      return true;
+    })();
+
+    if (historyMatchesWindow) {
+      const existingIndex = historyState.items.findIndex(
+        (item) => item.requestId && payload.requestId && item.requestId === payload.requestId,
+      );
+
+      const newRecord = {
+        id: payload.requestId || `temp-${Date.now()}`,
+        createdAt: new Date().toISOString(),
+        eventTimestamp: timestamp.toISOString(),
+        requestId: payload.requestId ?? null,
+        url: payload.url ?? null,
+        durationSec: payload.durationSec ?? null,
+        promptChars: payload.promptChars ?? null,
+        replyChars: payload.replyChars ?? null,
+        requestBytes: payload.reqBytes ?? null,
+        responseBytes: payload.respBytes ?? null,
+        totalBytes: payload.totalBytes ?? null,
+        computeWh: payload.computeWh ?? null,
+        networkWh: payload.networkWh ?? null,
+        totalWh: payload.totalWh ?? null,
+        kgCO2: payload.kgCO2 ?? null,
+        region: payload.region ?? null,
+        kgPerKWh: payload.kgPerKWh ?? null,
+      };
+
+      if (existingIndex >= 0) {
+        historyState.items.splice(existingIndex, 1, newRecord);
+      } else {
+        historyState.items = [newRecord, ...historyState.items];
+        if (historyState.items.length > historyState.pageSize) {
+          historyState.items.pop();
+        }
+        historyState.total += 1;
+        historyState.totalPages = historyState.pageSize > 0
+          ? Math.max(historyState.totalPages, Math.ceil(historyState.total / historyState.pageSize))
+          : historyState.totalPages;
+      }
+
+      renderHistory();
+    }
+  }
+
+  scheduleConsumptionRefresh();
 }
 
 function showAuthView() {
   elements.dashboardSection.classList.add('hidden');
   elements.authSection.classList.remove('hidden');
   setDashboardMessage('', null);
+  if (elements.currentUserRole) {
+    elements.currentUserRole.textContent = '';
+  }
+  resetConsumptionState();
+  setActiveTab('overview');
   if (elements.authEmail) {
     elements.authEmail.focus();
   }
@@ -213,8 +700,16 @@ function showDashboard(state) {
   elements.authSection.classList.add('hidden');
   elements.dashboardSection.classList.remove('hidden');
   elements.currentUserEmail.textContent = state?.user?.email ?? '';
+  if (elements.currentUserRole) {
+    elements.currentUserRole.textContent = state?.user?.role
+      ? describeRole(state.user.role)
+      : '';
+  }
   setAuthMessage('', null);
   renderEstimation();
+  renderSummary();
+  renderHistory();
+  setActiveTab('overview');
 }
 
 async function refreshAuthState({ preserveMessages = false } = {}) {
@@ -229,8 +724,21 @@ async function refreshAuthState({ preserveMessages = false } = {}) {
   }
 
   if (state?.user) {
+    const userChanged = currentAuthState?.user?.id !== state.user.id;
+    currentAuthState = state;
+    if (userChanged) {
+      resetConsumptionState();
+    }
     showDashboard(state);
+    if (userChanged) {
+      historyState.page = 1;
+    }
+    await Promise.all([
+      loadSummary({ silent: true }),
+      loadHistory({ page: historyState.page, silent: true }),
+    ]);
   } else {
+    currentAuthState = null;
     if (!preserveMessages) {
       setAuthMessage('', null);
     }
@@ -349,10 +857,96 @@ function setupListeners() {
     });
   }
 
+  elements.tabButtons.forEach((button) => {
+    button.addEventListener('click', () => {
+      setActiveTab(button.dataset.tab);
+    });
+  });
+
+  if (elements.summaryForm) {
+    elements.summaryForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const from = parseDateTimeInput(elements.summaryFrom?.value || '');
+      const to = parseDateTimeInput(elements.summaryTo?.value || '');
+      if (from && to && from > to) {
+        if (elements.summaryUpdated) {
+          elements.summaryUpdated.textContent = 'La date de début doit précéder la date de fin.';
+        }
+        return;
+      }
+      summaryState.filters = { from, to };
+      await loadSummary();
+    });
+  }
+
+  if (elements.summaryReset) {
+    elements.summaryReset.addEventListener('click', async () => {
+      summaryState.filters = { from: null, to: null };
+      if (elements.summaryFrom) elements.summaryFrom.value = '';
+      if (elements.summaryTo) elements.summaryTo.value = '';
+      await loadSummary();
+    });
+  }
+
+  if (elements.historyForm) {
+    elements.historyForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const from = parseDateTimeInput(elements.historyFrom?.value || '');
+      const to = parseDateTimeInput(elements.historyTo?.value || '');
+      if (from && to && from > to) {
+        if (elements.historyStatus) {
+          elements.historyStatus.textContent = 'La date de début doit précéder la date de fin.';
+        }
+        return;
+      }
+      historyState.filters = { from, to };
+      historyState.pageSize = Number.parseInt(elements.historyPageSize?.value || `${historyState.pageSize}`, 10) || historyState.pageSize;
+      historyState.page = 1;
+      await loadHistory();
+    });
+  }
+
+  if (elements.historyReset) {
+    elements.historyReset.addEventListener('click', async () => {
+      historyState.filters = { from: null, to: null };
+      historyState.page = 1;
+      historyState.pageSize = DEFAULT_HISTORY_PAGE_SIZE;
+      if (elements.historyFrom) elements.historyFrom.value = '';
+      if (elements.historyTo) elements.historyTo.value = '';
+      if (elements.historyPageSize) elements.historyPageSize.value = String(DEFAULT_HISTORY_PAGE_SIZE);
+      await loadHistory();
+    });
+  }
+
+  if (elements.historyPrev) {
+    elements.historyPrev.addEventListener('click', async () => {
+      if (historyState.page <= 1) return;
+      await loadHistory({ page: historyState.page - 1 });
+    });
+  }
+
+  if (elements.historyNext) {
+    elements.historyNext.addEventListener('click', async () => {
+      if (historyState.page >= historyState.totalPages) return;
+      await loadHistory({ page: historyState.page + 1 });
+    });
+  }
+
+  if (elements.historyPageSize) {
+    elements.historyPageSize.addEventListener('change', async () => {
+      const newSize = Number.parseInt(elements.historyPageSize.value, 10);
+      if (!Number.isFinite(newSize)) return;
+      historyState.pageSize = Math.max(1, Math.min(100, Math.trunc(newSize)));
+      historyState.page = 1;
+      await loadHistory();
+    });
+  }
+
   browserApi.runtime.onMessage.addListener((message) => {
     if (message?.type === 'gptcarbon:estimation' && message.data) {
       lastEstimation = message.data;
       renderEstimation();
+      handleRealtimeConsumptionUpdate(message.data);
     }
   });
 }

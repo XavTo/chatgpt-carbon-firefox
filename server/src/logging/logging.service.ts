@@ -1,24 +1,45 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
 import { CreateLogEventDto } from './dto/create-log-event.dto';
 import { LogEvent } from '../entities/log-event.entity';
+import { JwtPayload } from '../auth/jwt-payload.interface';
+import { ConsumptionService } from '../consumption/consumption.service';
 
 @Injectable()
 export class LoggingService {
+  private readonly logger = new Logger(LoggingService.name);
+
   constructor(
     @InjectRepository(LogEvent)
     private readonly repo: Repository<LogEvent>,
+    private readonly consumptionService: ConsumptionService,
   ) {}
 
-  async create(dto: CreateLogEventDto): Promise<LogEvent> {
+  async create(dto: CreateLogEventDto, user: JwtPayload): Promise<LogEvent> {
     const entity = this.repo.create({
       type: dto.type,
       requestId: dto.requestId ?? null,
       payload: dto.payload,
     });
-    return this.repo.save(entity);
+    const saved = await this.repo.save(entity);
+
+    if (dto.type === 'estimation' && user?.sub) {
+      try {
+        await this.consumptionService.createFromEstimation(
+          user.sub,
+          dto.requestId ?? null,
+          dto.payload,
+        );
+      } catch (error) {
+        this.logger.warn(
+          `Impossible d'enregistrer la consommation pour l'utilisateur ${user.sub}: ${error instanceof Error ? error.message : error}`,
+        );
+      }
+    }
+
+    return saved;
   }
 
   async getRecent(limit?: number): Promise<LogEvent[]> {

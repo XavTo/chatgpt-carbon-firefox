@@ -34,6 +34,9 @@ export async function getAuthState() {
   const result = await storage.get(AUTH_STORAGE_KEY);
   const state = result[AUTH_STORAGE_KEY];
   if (!state) return null;
+  if (state.user && !state.user.role) {
+    state.user = { ...state.user, role: 'user' };
+  }
   return { ...state };
 }
 
@@ -51,7 +54,9 @@ function mapAuthResponse(apiBaseUrl, payload) {
   const now = Date.now();
   return {
     apiBaseUrl: normalizeBaseUrl(apiBaseUrl),
-    user: payload.user,
+    user: payload.user
+      ? { ...payload.user, role: payload.user.role ?? 'user' }
+      : null,
     accessToken: payload.accessToken,
     refreshToken: payload.refreshToken,
     tokenType: payload.tokenType ?? 'Bearer',

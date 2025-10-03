@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 
-import { User } from '../entities/user.entity';
+import { User, UserRole } from '../entities/user.entity';
 import { UsersService } from '../users/users.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
@@ -13,6 +13,7 @@ export interface AuthTokensResponse {
   user: {
     id: string;
     email: string;
+    role: UserRole;
   };
   accessToken: string;
   refreshToken: string;
@@ -83,6 +84,7 @@ export class AuthService {
     const payloadBase = {
       sub: user.id,
       email: user.email,
+      role: user.role,
     };
 
     const accessTokenTtl = this.accessTokenTtl;
@@ -110,6 +112,7 @@ export class AuthService {
       user: {
         id: user.id,
         email: user.email,
+        role: user.role,
       },
       accessToken,
       refreshToken,
