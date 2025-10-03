@@ -700,11 +700,6 @@ function showDashboard(state) {
   elements.authSection.classList.add('hidden');
   elements.dashboardSection.classList.remove('hidden');
   elements.currentUserEmail.textContent = state?.user?.email ?? '';
-  if (elements.currentUserRole) {
-    elements.currentUserRole.textContent = state?.user?.role
-      ? describeRole(state.user.role)
-      : '';
-  }
   setAuthMessage('', null);
   renderEstimation();
   renderSummary();
