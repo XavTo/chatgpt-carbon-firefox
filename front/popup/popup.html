@@ -129,6 +129,21 @@
       flex-direction: column;
       gap: 16px;
     }
+    /* Center the auth card vertically under the header (without changing popup size) */
+    body.is-auth main {
+      min-height: 100vh;
+      display: grid;
+      grid-template-rows: auto 1fr; /* header height, then remaining space */
+    }
+    body.is-auth #authSection.card {
+      align-self: center;
+      justify-self: center;
+      margin: 0;
+      margin-top: -80px; /* nudge it up a bit to visually center better */
+      width: 92%;
+      max-width: 500px; /* wider card so it feels less cramped */
+      padding: 27px 22px;   /* ~10px taller via +5px top/bottom */
+    }
 
     .toolbar {
       display: flex;

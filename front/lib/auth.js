@@ -1,17 +1,16 @@
+import { BACKEND_BASE_URL } from './config.js';
+
 const browserApi = typeof browser !== 'undefined'
   ? browser
   : (typeof chrome !== 'undefined' ? chrome : null);
 const AUTH_STORAGE_KEY = 'authState';
-
-const RAW_API_BASE_URL = "https://chatgpt-carbon.xavto.fr";
-console.log('API_BASE_URL:', RAW_API_BASE_URL);
 
 function normalizeBaseUrl(url) {
   if (!url) return '';
   return url.replace(/\/$/, '');
 }
 
-export const API_BASE_URL = normalizeBaseUrl(RAW_API_BASE_URL);
+export const API_BASE_URL = normalizeBaseUrl(BACKEND_BASE_URL);
 export const EVENTS_URL = `${API_BASE_URL}/events`;
 
 function resolveBaseUrl(candidate) {

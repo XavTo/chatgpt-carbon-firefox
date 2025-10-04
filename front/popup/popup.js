@@ -793,6 +793,7 @@ function handleRealtimeConsumptionUpdate(payload) {
 function showAuthView() {
   elements.dashboardSection.classList.add('hidden');
   elements.authSection.classList.remove('hidden');
+  document.body.classList.add('is-auth');
   setDashboardMessage('', null);
   if (elements.currentUserRole) {
     elements.currentUserRole.textContent = '';
@@ -807,6 +808,7 @@ function showAuthView() {
 function showDashboard(state) {
   elements.authSection.classList.add('hidden');
   elements.dashboardSection.classList.remove('hidden');
+  document.body.classList.remove('is-auth');
   elements.currentUserEmail.textContent = state?.user?.email ?? '';
   setAuthMessage('', null);
   renderEstimation();
@@ -870,7 +872,8 @@ async function handleAuthSubmit(event) {
     return;
   }
 
-  if (!passwordRegex.test(password)) {
+  // Apply password strength check only in registration mode
+  if (authMode === 'register' && !passwordRegex.test(password)) {
     setAuthMessage('Le mot de passe doit faire au moins 8 caractères et contenir une majuscule, une minuscule, un chiffre et un caractère spécial.', 'error');
     elements.authPassword.focus();
     return;

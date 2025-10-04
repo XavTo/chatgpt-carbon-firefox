@@ -9,10 +9,9 @@
     "target": "es2018",
     "sourceMap": true,
     "outDir": "./dist",
-    "baseUrl": "./",
     "incremental": true,
     "strictNullChecks": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]
