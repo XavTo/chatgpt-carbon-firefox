@@ -966,6 +966,28 @@ function setupListeners() {
   });
   elements.logoutButton.addEventListener('click', handleLogout);
 
+  // Allow pressing Enter in auth inputs to trigger the primary action
+  const authEnterHandler = (event) => {
+    if (event.key !== 'Enter') return;
+    const email = elements.authEmail?.value?.trim();
+    const password = elements.authPassword?.value || '';
+    const confirm = elements.authPasswordConfirm?.value || '';
+
+    // Only submit if required fields are filled for the current mode
+    const hasRequired = authMode === 'register'
+      ? Boolean(email && password && confirm)
+      : Boolean(email && password);
+
+    const btn = authButtonController.getElement?.();
+    if (!hasRequired || !btn || btn.disabled) return;
+    event.preventDefault();
+    btn.click();
+  };
+
+  elements.authEmail?.addEventListener('keydown', authEnterHandler);
+  elements.authPassword?.addEventListener('keydown', authEnterHandler);
+  elements.authPasswordConfirm?.addEventListener('keydown', authEnterHandler);
+
   if (elements.themeToggle) {
     elements.themeToggle.addEventListener('click', () => {
       const nextPref = getNextThemePreference(themePreference);
